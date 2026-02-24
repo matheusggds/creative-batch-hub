@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useGenerationsRealtime } from "@/hooks/useGenerationsRealtime";
 import { useCreateBatch } from "@/hooks/useBatches";
 import { AssetGallery } from "@/components/studio/AssetGallery";
 import { AiSettings } from "@/components/studio/AiSettings";
@@ -14,6 +15,7 @@ import type { AiParameters } from "@/types/studio";
 export default function Studio() {
   const { user, signOut } = useAuth();
   const createBatch = useCreateBatch();
+  useGenerationsRealtime();
 
   const [selectedAvatar, setSelectedAvatar] = useState<string[]>([]);
   const [selectedClothing, setSelectedClothing] = useState<string[]>([]);
