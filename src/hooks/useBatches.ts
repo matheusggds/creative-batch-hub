@@ -85,27 +85,25 @@ export function useCreateBatch() {
         base_asset_id: baseAssetId,
         reference_asset_id: refId,
         ai_parameters: aiParameters as any,
-        status: "processing" as const,
+        status: "pending" as const,
       }));
 
-      const { error: genError } = await supabase.from("generations").insert(generations);
+      const { data: insertedGens, error: genError } = await supabase
+        .from("generations")
+        .insert(generations)
+        .select();
       if (genError) throw genError;
 
-      // Mock: simulate processing with 4s timeout
-      setTimeout(async () => {
-        await supabase
-          .from("generations")
-          .update({ status: "completed", result_url: "/placeholder.svg" })
-          .eq("batch_id", batch.id);
-
-        await supabase
-          .from("generation_batches")
-          .update({ status: "completed" })
-          .eq("id", batch.id);
-
-        qc.invalidateQueries({ queryKey: ["batches"] });
-        qc.invalidateQueries({ queryKey: ["generations-all"] });
-      }, 4000);
+      // Fire-and-forget: invoke Edge Function for each generation
+      for (const gen of insertedGens || []) {
+        supabase.functions
+          .invoke("process-generation", {
+            body: { generation_id: gen.id },
+          })
+          .then(({ error }) => {
+            if (error) console.error(`Edge function error for ${gen.id}:`, error);
+          });
+      }
 
       return batch as GenerationBatch;
     },

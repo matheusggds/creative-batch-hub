@@ -79,9 +79,32 @@ export function BatchResults() {
             <CardContent className="px-4 pb-4">
               {batch.status === "processing" ? (
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                  {gens.map((g) => (
-                    <Skeleton key={g.id} className="aspect-[9/16] rounded-md animate-pulse" />
-                  ))}
+                  {gens.map((g) => {
+                    const params = g.ai_parameters as unknown as Record<string, unknown> | null;
+                    const hasPrompt = !!params?.extracted_positive_prompt;
+                    return (
+                      <div key={g.id} className="relative">
+                        <Skeleton className="aspect-[9/16] rounded-md animate-pulse" />
+                        <div className="absolute inset-0 flex items-end p-2">
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            {g.status === "failed" ? (
+                              "❌ Falhou"
+                            ) : hasPrompt ? (
+                              <>
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                Gerando imagem…
+                              </>
+                            ) : (
+                              <>
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                Extraindo prompt…
+                              </>
+                            )}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
