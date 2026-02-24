@@ -98,7 +98,7 @@ export function AssetGallery({ type, selected, onSelect, multiple = false, label
         </div>
       ) : (
         <p className="text-xs text-muted-foreground py-4 text-center border border-dashed rounded-md">
-          Nenhum {type === "avatar" ? "avatar" : "item"} ainda. Faça upload!
+          Nenhum item ainda. Faça upload!
         </p>
       )}
       {multiple && selected.length > 0 && (

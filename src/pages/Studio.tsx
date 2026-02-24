@@ -17,26 +17,25 @@ export default function Studio() {
   const createBatch = useCreateBatch();
   useGenerationsRealtime();
 
-  const [selectedAvatar, setSelectedAvatar] = useState<string[]>([]);
-  const [selectedClothing, setSelectedClothing] = useState<string[]>([]);
+  const [selectedReferences, setSelectedReferences] = useState<string[]>([]);
   const [aiParams, setAiParams] = useState<AiParameters>({
     aspect_ratio: "9:16",
     style_prompt: "",
     negative_prompt: "",
   });
 
-  const canGenerate = selectedAvatar.length === 1 && selectedClothing.length > 0;
+  const canGenerate = selectedReferences.length > 0;
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
     try {
       await createBatch.mutateAsync({
-        baseAssetId: selectedAvatar[0],
-        referenceAssetIds: selectedClothing,
+        baseAssetId: null,
+        referenceAssetIds: selectedReferences,
         aiParameters: aiParams,
       });
-      toast.success(`Lote criado com ${selectedClothing.length} variação(ões)!`);
-      setSelectedClothing([]);
+      toast.success(`Lote criado com ${selectedReferences.length} variação(ões)!`);
+      setSelectedReferences([]);
     } catch {
       toast.error("Erro ao criar lote.");
     }
@@ -69,29 +68,15 @@ export default function Studio() {
           <div className="space-y-4">
             <Card className="border-border/50">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">🧑 Avatar Base</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AssetGallery
-                  type="avatar"
-                  selected={selectedAvatar}
-                  onSelect={setSelectedAvatar}
-                  label="Selecione ou faça upload do avatar"
-                />
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/50">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">👕 Referência de Roupa</CardTitle>
+                <CardTitle className="text-base">🖼️ Imagem de Referência</CardTitle>
               </CardHeader>
               <CardContent>
                 <AssetGallery
                   type="clothing"
-                  selected={selectedClothing}
-                  onSelect={setSelectedClothing}
+                  selected={selectedReferences}
+                  onSelect={setSelectedReferences}
                   multiple
-                  label="Selecione múltiplas roupas para gerar lote"
+                  label="Selecione imagens para extrair o prompt"
                 />
               </CardContent>
             </Card>
@@ -113,7 +98,7 @@ export default function Studio() {
               <Zap className="h-4 w-4" />
               {createBatch.isPending
                 ? "Criando lote..."
-                : `Gerar Variações em Lote${selectedClothing.length > 0 ? ` (${selectedClothing.length})` : ""}`}
+                : `Gerar${selectedReferences.length > 0 ? ` (${selectedReferences.length})` : ""}`}
             </Button>
           </div>
 

@@ -65,7 +65,7 @@ export type Database = {
       generations: {
         Row: {
           ai_parameters: Json
-          base_asset_id: string
+          base_asset_id: string | null
           batch_id: string
           created_at: string
           id: string
@@ -76,7 +76,7 @@ export type Database = {
         }
         Insert: {
           ai_parameters?: Json
-          base_asset_id: string
+          base_asset_id?: string | null
           batch_id: string
           created_at?: string
           id?: string
@@ -87,7 +87,7 @@ export type Database = {
         }
         Update: {
           ai_parameters?: Json
-          base_asset_id?: string
+          base_asset_id?: string | null
           batch_id?: string
           created_at?: string
           id?: string
