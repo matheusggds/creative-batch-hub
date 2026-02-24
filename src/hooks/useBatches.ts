@@ -64,7 +64,7 @@ export function useCreateBatch() {
       referenceAssetIds,
       aiParameters,
     }: {
-      baseAssetId: string;
+      baseAssetId?: string | null;
       referenceAssetIds: string[];
       aiParameters: AiParameters;
     }) => {
@@ -82,7 +82,7 @@ export function useCreateBatch() {
       const generations = referenceAssetIds.map((refId) => ({
         batch_id: batch.id,
         user_id: user.id,
-        base_asset_id: baseAssetId,
+        base_asset_id: baseAssetId || null,
         reference_asset_id: refId,
         ai_parameters: aiParameters as any,
         status: "pending" as const,

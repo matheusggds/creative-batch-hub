@@ -24,7 +24,7 @@ export interface Generation {
   id: string;
   batch_id: string;
   user_id: string;
-  base_asset_id: string;
+  base_asset_id: string | null;
   reference_asset_id: string;
   result_url: string | null;
   ai_parameters: AiParameters;
