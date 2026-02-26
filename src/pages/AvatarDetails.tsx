@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { GenerateBaseAnglesModal } from "@/components/avatar/GenerateBaseAnglesModal";
 import { GenerationStatusPanel } from "@/components/avatar/GenerationStatusPanel";
+import { GenerationHistorySection } from "@/components/avatar/GenerationHistorySection";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvatarProfile } from "@/hooks/useAvatarProfile";
 import { useAuth } from "@/hooks/useAuth";
@@ -240,10 +241,13 @@ export default function AvatarDetails() {
           </div>
         )}
 
-        {/* Generation Status Panel */}
+        {/* Active Generation Status */}
         {activeGenerationId && (
           <GenerationStatusPanel generationId={activeGenerationId} />
         )}
+
+        {/* Generation History */}
+        <GenerationHistorySection avatarProfileId={avatar.id} />
 
         {/* Generate Base Angles Modal */}
         <GenerateBaseAnglesModal
