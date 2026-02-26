@@ -1,20 +1,39 @@
 
 
-## Plan: Eliminate Legacy Direct-Processing for Avatar Generation
+## Fix: Add missing `avatarProfileId` to `create-generation` payload
 
-### Status: ✅ IMPLEMENTED
+### Root Cause
 
-### Changes Made
+`GenerateBaseAnglesModal.tsx` receives `avatarProfileId` as a prop and writes it to the `generations` DB row (line 126), but the `create-generation` invoke body (lines 178-191) omits it. The edge function requires `avatarProfileId` when `sourceMode === "avatar_workspace"`.
 
-#### 1. `src/components/avatar/GenerateBaseAnglesModal.tsx`
-- Switched from `process-generation` to `create-generation` edge function
-- Passes full payload: `toolType`, `pipelineType`, `sourceMode`, `referenceAssetIds`, `generationId`, and `input` object
-- Added `pipeline: "create-generation"` to `_debug` marker in `ai_parameters`
+### Fix (1 line addition)
 
-#### 2. `supabase/functions/process-generation/index.ts`
-- Added guardrail: rejects any generation with `pipeline_type === "multimodal_image_generation"`
-- Prevents accidental future use of the legacy path for avatar/multimodal flows
+**File**: `src/components/avatar/GenerateBaseAnglesModal.tsx`, line ~182
 
-### Remaining Risks
-- `create-generation` is deployed but not in repo — contract assumed from QuickFlow.tsx usage
-- Studio batch flow (`useBatches.ts`) still uses `process-generation` (out of scope, uses `text_to_image`)
+Add `avatarProfileId` to the body object:
+
+```typescript
+body: {
+  toolType: "avatar_base_pack_generation",
+  pipelineType: "multimodal_image_generation",
+  sourceMode: "avatar_workspace",
+  avatarProfileId,                        // ← ADD THIS
+  referenceAssetIds: referenceAssetIds,
+  generationId: gen.id,
+  input: { ... },
+},
+```
+
+### No other callers affected
+
+- `QuickFlow.tsx` uses `sourceMode: "quick_flow"` — does not need `avatarProfileId`.
+- `useBatches.ts` uses `process-generation` — unrelated.
+
+### Verification
+
+In browser devtools Network tab, trigger a generation from Avatar Details, inspect the `create-generation` request body and confirm `avatarProfileId` is present and matches the current avatar UUID from the URL.
+
+### Risks
+
+None — this is a one-field addition to an existing payload. No other flows are touched.
+
