@@ -101,6 +101,9 @@ export function GenerationHistorySection({ avatarProfileId }: Props) {
 function GenerationRow({ generation, onClick }: { generation: AvatarGeneration; onClick: () => void }) {
   const style = getStyle(generation.status);
   const isActive = ["pending", "processing", "queued"].includes(generation.status);
+  const params = generation.ai_parameters as Record<string, unknown> | null;
+  const shotLabel = (params?._debug as Record<string, unknown>)?.shotLabel as string | undefined
+    ?? (params?.shotId as string | undefined);
 
   return (
     <button
@@ -127,6 +130,11 @@ function GenerationRow({ generation, onClick }: { generation: AvatarGeneration; 
             {style.icon}
             {style.label}
           </Badge>
+          {shotLabel && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+              {shotLabel}
+            </Badge>
+          )}
           {isActive && generation.current_step && (
             <span className="text-[10px] text-muted-foreground truncate">{generation.current_step}</span>
           )}
@@ -181,6 +189,15 @@ function DetailContent({ data }: { data: import("@/hooks/useGenerationStatus").G
   const style = getStyle(generation.status);
   const isTerminal = generation.status === "completed" || generation.status === "failed";
 
+  const params = generation.ai_parameters as Record<string, unknown> | null;
+  const debug = params?._debug as Record<string, unknown> | undefined;
+  const shotId = params?.shotId as string | undefined;
+  const shotLabel = (debug?.shotLabel as string) ?? shotId;
+  const selectedRefAssetIds = debug?.selectedRefAssetIds as string[] | undefined;
+  const debugFocusPiece = debug?.focusPiece as string | undefined;
+  const extractedPrompt = generation.extracted_prompt;
+  const geminiModel = params?.geminiPreferredModel as string | undefined;
+
   return (
     <div className="space-y-4">
       {/* Status row */}
@@ -193,6 +210,63 @@ function DetailContent({ data }: { data: import("@/hooks/useGenerationStatus").G
           {format(new Date(generation.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
         </span>
       </div>
+
+      {/* Debug info panel */}
+      {(shotLabel || debug) && (
+        <details className="rounded-md border border-border/40 bg-muted/20">
+          <summary className="px-3 py-2 text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
+            🔍 Debug Info
+          </summary>
+          <div className="px-3 pb-3 space-y-2 text-xs">
+            {shotLabel && (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground">Ângulo:</span>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">{shotLabel}</Badge>
+                {shotId && <span className="text-muted-foreground/60 font-mono">{shotId}</span>}
+              </div>
+            )}
+            {debugFocusPiece && (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground">Focus Piece:</span>
+                <span>{debugFocusPiece}</span>
+              </div>
+            )}
+            {selectedRefAssetIds && (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground">Refs selecionadas:</span>
+                <span className="font-mono text-[10px]">{selectedRefAssetIds.length}x — {selectedRefAssetIds.map(id => id.slice(0,8)).join(", ")}</span>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <span className="text-muted-foreground">ref_asset_id (backend):</span>
+              <span className="font-mono text-[10px]">{generation.reference_asset_id?.slice(0,8) ?? "—"}</span>
+              {selectedRefAssetIds?.[0] && generation.reference_asset_id !== selectedRefAssetIds[0] && (
+                <Badge variant="destructive" className="text-[10px] px-1 py-0">MISMATCH</Badge>
+              )}
+            </div>
+            {geminiModel && (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground">Modelo Gemini:</span>
+                <span className="font-mono">{geminiModel}</span>
+              </div>
+            )}
+            {extractedPrompt && (
+              <div className="space-y-1">
+                <span className="text-muted-foreground">Prompt extraído:</span>
+                <pre className="whitespace-pre-wrap font-mono text-[10px] bg-muted/50 rounded p-2 max-h-[120px] overflow-y-auto border border-border/30">
+                  {extractedPrompt}
+                </pre>
+              </div>
+            )}
+            {debug?.submittedAt && (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground">Submetido em:</span>
+                <span className="font-mono text-[10px]">{debug.submittedAt as string}</span>
+              </div>
+            )}
+          </div>
+        </details>
+      )}
 
       {/* Progress */}
       {!isTerminal && (
