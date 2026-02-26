@@ -135,6 +135,7 @@ export function GenerateBaseAnglesModal({
           focusPiece: focusPiece.trim() || undefined,
           geminiPreferredModel: "gemini-3-pro-image-preview",
           _debug: {
+            pipeline: "create-generation",
             selectedRefAssetIds: referenceAssetIds,
             selectedShotId: shotId,
             shotLabel: SHOT_LIST.find((s) => s.id === shotId)?.label ?? shotId,
@@ -170,11 +171,24 @@ export function GenerateBaseAnglesModal({
         if (refError) console.error("generation_reference_assets insert error:", refError);
       }
 
-      // Fire-and-forget: invoke process-generation for each
+      // Fire-and-forget: invoke create-generation (queued job-based pipeline)
       for (const gen of insertedGens) {
+        const shotId = (gen.ai_parameters as Record<string, unknown>)?.shotId as string;
         supabase.functions
-          .invoke("process-generation", {
-            body: { generation_id: gen.id },
+          .invoke("create-generation", {
+            body: {
+              toolType: "avatar_base_pack_generation",
+              pipelineType: "multimodal_image_generation",
+              sourceMode: "avatar_workspace",
+              referenceAssetIds: referenceAssetIds,
+              generationId: gen.id,
+              input: {
+                shotId,
+                focusPiece: focusPiece.trim() || undefined,
+                geminiPreferredModel: "gemini-3-pro-image-preview",
+                promptPackId: "ugc-avatar-reference-pack-v1",
+              },
+            },
           })
           .then(({ error }) => {
             if (error) console.error(`Edge function error for ${gen.id}:`, error);

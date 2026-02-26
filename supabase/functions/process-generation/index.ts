@@ -32,6 +32,11 @@ serve(async (req) => {
       .single();
     if (genErr || !gen) throw new Error(`Generation not found: ${genErr?.message}`);
 
+    // Guardrail: multimodal_image_generation MUST use create-generation pipeline
+    if (gen.pipeline_type === "multimodal_image_generation") {
+      throw new Error("multimodal_image_generation must use create-generation pipeline. This legacy endpoint is not allowed for avatar/multimodal flows.");
+    }
+
     // Update status to processing
     await supabase
       .from("generations")
