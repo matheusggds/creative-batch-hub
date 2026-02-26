@@ -180,6 +180,7 @@ export function GenerateBaseAnglesModal({
               toolType: "avatar_base_pack_generation",
               pipelineType: "multimodal_image_generation",
               sourceMode: "avatar_workspace",
+              avatarProfileId,
               referenceAssetIds: referenceAssetIds,
               generationId: gen.id,
               input: {
