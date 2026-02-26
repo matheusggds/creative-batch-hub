@@ -62,13 +62,11 @@ export function GenerationHistorySection({ avatarProfileId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="space-y-3">
-        <Skeleton className="h-6 w-48" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-lg" />
-          ))}
-        </div>
+      <div className="space-y-2">
+        <Skeleton className="h-5 w-40" />
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-12 w-full rounded-md" />
+        ))}
       </div>
     );
   }
@@ -83,9 +81,9 @@ export function GenerationHistorySection({ avatarProfileId }: Props) {
         <span className="text-xs text-muted-foreground">({generations.length})</span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+      <div className="space-y-1">
         {generations.map((gen) => (
-          <GenerationCard key={gen.id} generation={gen} onClick={() => setSelectedId(gen.id)} />
+          <GenerationRow key={gen.id} generation={gen} onClick={() => setSelectedId(gen.id)} />
         ))}
       </div>
 
@@ -98,57 +96,50 @@ export function GenerationHistorySection({ avatarProfileId }: Props) {
   );
 }
 
-/* ---------- Card ---------- */
+/* ---------- Compact Row ---------- */
 
-function GenerationCard({ generation, onClick }: { generation: AvatarGeneration; onClick: () => void }) {
+function GenerationRow({ generation, onClick }: { generation: AvatarGeneration; onClick: () => void }) {
   const style = getStyle(generation.status);
-  const isActive = generation.status === "pending" || generation.status === "processing" || generation.status === "queued";
+  const isActive = ["pending", "processing", "queued"].includes(generation.status);
 
   return (
-    <div
+    <button
       onClick={onClick}
-      className="group relative rounded-lg border border-border/50 overflow-hidden bg-muted cursor-pointer hover:border-primary/40 transition-all"
+      className="flex items-center gap-3 w-full rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-left hover:border-primary/40 transition-colors"
     >
-      <div className="aspect-square">
+      <div className="h-10 w-10 shrink-0 rounded overflow-hidden bg-muted border border-border/30">
         {generation.result_url ? (
-          <img
-            src={generation.result_url}
-            alt="Resultado"
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
+          <img src={generation.result_url} alt="Resultado" className="h-full w-full object-cover" loading="lazy" />
         ) : isActive ? (
-          <div className="flex flex-col items-center justify-center h-full gap-2">
-            <Loader2 className="h-6 w-6 text-primary animate-spin" />
-            <Progress value={generation.progress_pct} className="w-3/4 h-1" />
-            <span className="text-[10px] text-muted-foreground">{generation.progress_pct}%</span>
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-4 w-4 text-primary animate-spin" />
           </div>
         ) : (
           <div className="flex items-center justify-center h-full">
-            <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+            <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
           </div>
         )}
       </div>
 
-      {/* Status + time overlay */}
-      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-background/90 to-transparent p-2 pt-6">
-        <div className="flex items-center justify-between">
-          <Badge variant={style.variant} className="gap-1 text-[10px] px-1.5 py-0">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <Badge variant={style.variant} className="gap-1 text-[10px] px-1.5 py-0 shrink-0">
             {style.icon}
             {style.label}
           </Badge>
-          <span className="text-[10px] text-muted-foreground">
-            {formatDistanceToNow(new Date(generation.created_at), { addSuffix: true, locale: ptBR })}
-          </span>
+          {isActive && generation.current_step && (
+            <span className="text-[10px] text-muted-foreground truncate">{generation.current_step}</span>
+          )}
         </div>
-        {generation.current_step && isActive && (
-          <p className="text-[10px] text-muted-foreground mt-1 truncate">{generation.current_step}</p>
-        )}
+        {isActive && <Progress value={generation.progress_pct} className="h-1 mt-1.5" />}
       </div>
-    </div>
+
+      <span className="text-[10px] text-muted-foreground shrink-0">
+        {formatDistanceToNow(new Date(generation.created_at), { addSuffix: true, locale: ptBR })}
+      </span>
+    </button>
   );
 }
-
 /* ---------- Detail Dialog ---------- */
 
 function GenerationDetailDialog({

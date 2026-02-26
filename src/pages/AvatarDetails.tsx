@@ -146,9 +146,9 @@ export default function AvatarDetails() {
                 <Plus className="h-4 w-4" />
                 Adicionar Imagem
               </Button>
-              <Button className="gap-2">
+              <Button className="gap-2" disabled={!hasSelection}>
                 <Palette className="h-4 w-4" />
-                Criar Novo Look
+                Criar Novo Look{hasSelection ? ` (${selectedIds.size})` : ""}
               </Button>
             </div>
           </div>
@@ -156,7 +156,7 @@ export default function AvatarDetails() {
 
         {/* Gallery Header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Galeria de Referência</h2>
+          <h2 className="text-lg font-semibold">Biblioteca do Avatar</h2>
           <div className="flex items-center gap-2">
             {hasSelection && (
               <span className="text-xs text-muted-foreground">
@@ -178,9 +178,9 @@ export default function AvatarDetails() {
             <div className="rounded-full bg-muted p-4 mb-4">
               <Images className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="font-semibold">Nenhuma imagem de referência</h3>
+            <h3 className="font-semibold">Nenhuma imagem na biblioteca</h3>
             <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-              Adicione imagens de referência para treinar e gerar variações deste avatar.
+              Adicione imagens para treinar e gerar variações deste avatar.
             </p>
             <Button variant="outline" className="gap-2 mt-4">
               <Plus className="h-4 w-4" />
@@ -228,13 +228,6 @@ export default function AvatarDetails() {
                     />
                   </div>
 
-                  {/* Role badge */}
-                  <Badge
-                    variant="secondary"
-                    className="absolute bottom-1.5 left-1.5 text-[10px] px-1.5 py-0 bg-background/70 backdrop-blur-sm"
-                  >
-                    {ref.role}
-                  </Badge>
                 </div>
               );
             })}
