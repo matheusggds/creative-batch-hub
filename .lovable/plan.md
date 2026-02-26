@@ -1,44 +1,83 @@
 
 
-## Plan: Multi-Angle Generation from Avatar Details
+## Debugging Plan: Generation Prompt/Reference Observability
 
-### Architecture Validation
+### Root Cause Analysis
 
-| Requirement | Supported? | Notes |
-|---|---|---|
-| Multiple reference assets per generation | Yes | `generation_reference_assets` table exists with `generation_id`, `asset_id`, `role`, `sort_order` |
-| Multiple generations from one submit | Yes | Create N generation records (one per shot), each linked to the same reference set |
-| References from both uploaded and library images | Yes | Both are `assets` rows; Avatar Library images already have `asset_id` via `avatar_reference_assets` |
-| Reuse library assets without duplication | Yes | `generation_reference_assets` links to existing `asset_id`s |
-| Generation history consistency | Yes | Each generation has `avatar_profile_id`; history hook already queries by it |
+After inspecting the full pipeline, I found **two critical bugs** that explain why outputs don't match selections:
 
-**Critical finding**: The `create-generation` edge function invoked in `GenerateBaseAnglesModal` does **not exist** in `supabase/functions/`. Only `process-generation` exists. This means the current "Gerar Ângulos Base" flow is already broken. The plan must account for this.
+1. **The Edge Function ignores `ai_parameters.shotId`** entirely. The `process-generation/index.ts` never reads `shotId`, `focusPiece`, or `promptPackId` from `ai_parameters`. It sends a generic prompt `"Me gere o prompt dessa imagem."` to OpenAI regardless of the selected angle. The shot selection on the frontend has zero effect on the backend.
 
-### No Schema Changes Required
+2. **The Edge Function uses an old code path** (`gpt-4o` + `gemini-2.0-flash-exp`) while the logs show `gpt-5.2` + `gemini-3-pro-image-preview`. This means **there is a newer deployed version** of the edge function that differs from the code in the repository. The repo code is stale.
 
-The existing tables (`generations`, `generation_reference_assets`, `generation_jobs`, `generation_events`) already support the multi-ref, multi-generation pattern.
+3. **System prompt is a placeholder**: `UGC_SYSTEM_PROMPT = "COLE_O_PROMPT_GIGANTE_AQUI"` — a literal placeholder string.
+
+4. **The Edge Function requires both `base_asset_id` AND `reference_asset_id`** (line 53: throws if either URL is missing), but the frontend sets `base_asset_id` to `null` for avatar workspace generations. This means the function should be failing for all avatar-generated requests unless the deployed version differs.
+
+### Debugging Plan (Observability First)
+
+Rather than fixing the prompt pipeline now, the plan focuses on making the full request/response chain visible.
 
 ---
 
-### Recommended UX Flow
+### Step 1: Persist a debug snapshot on generation creation (Frontend)
 
-1. User clicks **"Gerar Ângulos Base"** (or renamed "Adicionar Novos Ângulos").
-2. **Step 1 — Select References**: Grid of Avatar Library images with multi-select (up to 3). Optional: upload new image inline (goes to `assets` + `avatar_reference_assets`).
-3. **Step 2 — Select Shots**: Multi-select from the `SHOT_LIST`. Each selected shot = 1 generation to be created.
-4. **Step 3 — Optional focus piece** input (shared across all generations).
-5. **Submit**: Creates N generation records (one per selected shot), each linked to the same set of reference `asset_id`s via `generation_reference_assets`. Invokes the edge function for each.
-6. **Success state**: Shows count of generations created, closes modal, activates polling in history.
+**File**: `src/components/avatar/GenerateBaseAnglesModal.tsx`
 
-### Backend Pattern
+Save the complete frontend intent into `ai_parameters` so it's always queryable:
 
-On submit, the frontend will:
-1. Create N `generations` rows (one per shot) with `avatar_profile_id`, `status: 'pending'`
-2. For each generation, insert rows into `generation_reference_assets` linking the selected `asset_id`s
-3. Fire-and-forget `process-generation` for each generation ID
+```typescript
+ai_parameters: {
+  // existing fields...
+  _debug: {
+    selectedRefAssetIds: referenceAssetIds,
+    selectedShotId: shotId,
+    shotLabel: SHOT_LIST.find(s => s.id === shotId)?.label,
+    focusPiece: focusPiece.trim() || null,
+    refCount: referenceAssetIds.length,
+    submittedAt: new Date().toISOString(),
+  }
+}
+```
 
-This mirrors the existing `useCreateBatch` pattern in `useBatches.ts` — no new edge function needed.
+No schema change needed — `ai_parameters` is JSONB.
 
-**Note**: `process-generation` currently only reads `base_asset_id` and `reference_asset_id` from the generation row (single ref). It does NOT read from `generation_reference_assets`. Since the constraint is "do not modify existing Edge Functions", the plan will set `reference_asset_id` to the first selected reference for backward compatibility, and populate `generation_reference_assets` for future use.
+---
+
+### Step 2: Sync the Edge Function code from deployed version
+
+**File**: `supabase/functions/process-generation/index.ts`
+
+The repo code is stale. We need to either:
+- **(a)** Pull the actual deployed code (which uses `gpt-5.2` and `gemini-3-pro-image-preview` per logs), or
+- **(b)** Accept the repo code as source of truth and redeploy.
+
+**Recommendation**: Ask the user which version is authoritative. The deployed function is clearly different from the repo.
+
+---
+
+### Step 3: Add a debug detail panel to GenerationDetailModal
+
+**File**: `src/components/studio/GenerationDetailModal.tsx`
+
+Add a collapsible "Debug Info" section showing:
+- `ai_parameters.shotId` and `ai_parameters._debug.shotLabel` — what angle the user selected
+- `ai_parameters._debug.selectedRefAssetIds` — which references were chosen
+- `ai_parameters.extracted_positive_prompt` — the prompt sent to Gemini
+- `ai_parameters.openai_raw_response` — full OpenAI output
+- `ai_parameters.geminiPreferredModel` — requested model
+- Generation `reference_asset_id` — what the backend actually used
+- Mismatch indicator: compare `_debug.selectedRefAssetIds[0]` vs `reference_asset_id`
+
+Also used in Avatar Details via the Generation History "Ver detalhes" button.
+
+---
+
+### Step 4: Surface debug info in GenerationHistorySection
+
+**File**: `src/components/avatar/GenerationHistorySection.tsx`
+
+Add the shot label as a small tag on each generation row (read from `ai_parameters.shotId` → lookup in SHOT_LIST).
 
 ---
 
@@ -46,34 +85,31 @@ This mirrors the existing `useCreateBatch` pattern in `useBatches.ts` — no new
 
 | File | Change |
 |---|---|
-| `src/components/avatar/GenerateBaseAnglesModal.tsx` | Refactor: multi-shot selection, submit loop creating N generations, inline upload option |
-| `src/pages/AvatarDetails.tsx` | Minor: pass uploaded-image callback to modal, ensure history refreshes after batch submit |
-| `src/hooks/useAvatarGenerations.ts` | No change needed — already polls by `avatar_profile_id` |
+| `src/components/avatar/GenerateBaseAnglesModal.tsx` | Add `_debug` snapshot to `ai_parameters` |
+| `src/components/studio/GenerationDetailModal.tsx` | Add collapsible debug section showing full request chain |
+| `src/components/avatar/GenerationHistorySection.tsx` | Show shot label tag per row |
+| `supabase/functions/process-generation/index.ts` | **Needs sync** — repo code is stale vs deployed |
 
-### Frontend State Implications
+### No Schema Changes
 
-- `selectedRefIds: Set<string>` — already exists, no change
-- `selectedShotIds: Set<string>` — **new**, replaces single `shotId` string
-- On submit success: invalidate `avatar_generations` query key, set multiple `activeGenerationId`s or rely on history polling
-- Optional: track `submittingCount` for progress feedback
+All debug data fits in existing `ai_parameters` JSONB column.
 
-### Risks & Mitigations
+### Risks
 
-| Risk | Mitigation |
+| Risk | Level |
 |---|---|
-| `process-generation` only reads single `reference_asset_id` | Set it to first selected ref; populate `generation_reference_assets` for future edge function updates |
-| N parallel edge function calls could timeout/fail | Fire-and-forget pattern already used in `useCreateBatch`; individual failures don't block others |
-| `create-generation` edge function doesn't exist | Stop using it; create generations client-side + invoke `process-generation` directly (matches `useCreateBatch` pattern) |
+| `_debug` field slightly increases row size | Low — negligible |
+| Edge function repo/deployed mismatch | **High** — must resolve before any EF edits |
+| Detail modal used from both Studio and Avatar Details contexts | Medium — need to ensure it works with both data shapes |
 
 ### Implementation Order
 
-1. Refactor `GenerateBaseAnglesModal.tsx`: multi-shot selection UI + new submit logic (create generations client-side, invoke `process-generation`)
-2. Update `AvatarDetails.tsx`: ensure query invalidation on generation created
-3. Test end-to-end
+1. Add `_debug` snapshot to `GenerateBaseAnglesModal` (frontend-only, safe)
+2. Add debug section to `GenerationDetailModal` (frontend-only, safe)
+3. Add shot label to `GenerationHistorySection` rows (frontend-only, safe)
+4. **Separately**: resolve Edge Function repo vs deployed discrepancy with user
 
-### Knowledge Updates
+### Critical Question for User
 
-Add to project knowledge:
-- "Gerar Ângulos Base" creates generation records client-side and invokes `process-generation` per generation. There is no `create-generation` edge function.
-- `generation_reference_assets` should be populated for all generations even though `process-generation` currently only reads `reference_asset_id`. This prepares for future edge function updates.
-- Each shot/angle = 1 generation record. Multiple angles in one flow = multiple generation records sharing the same reference set.
+The deployed `process-generation` function uses `gpt-5.2` and `gemini-3-pro-image-preview`, but the repo code uses `gpt-4o` and `gemini-2.0-flash-exp`. **Which version is the source of truth?** We should not edit the Edge Function until this is resolved.
+
