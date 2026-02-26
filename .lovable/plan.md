@@ -1,115 +1,84 @@
 
 
-## Debugging Plan: Generation Prompt/Reference Observability
+## Plan: Eliminate Legacy Direct-Processing for Avatar Generation
 
-### Root Cause Analysis
+### Current State
 
-After inspecting the full pipeline, I found **two critical bugs** that explain why outputs don't match selections:
+There are **3 callers** of generation edge functions:
 
-1. **The Edge Function ignores `ai_parameters.shotId`** entirely. The `process-generation/index.ts` never reads `shotId`, `focusPiece`, or `promptPackId` from `ai_parameters`. It sends a generic prompt `"Me gere o prompt dessa imagem."` to OpenAI regardless of the selected angle. The shot selection on the frontend has zero effect on the backend.
+| Caller | Edge Function | Pipeline | Creates Jobs/Events? |
+|---|---|---|---|
+| `GenerateBaseAnglesModal.tsx` (Avatar) | `process-generation` | Legacy direct | **No** — this is the bug |
+| `useBatches.ts` (Studio) | `process-generation` | Legacy direct | **No** |
+| `QuickFlow.tsx` | `create-generation` | Queued job-based | **Yes** |
 
-2. **The Edge Function uses an old code path** (`gpt-4o` + `gemini-2.0-flash-exp`) while the logs show `gpt-5.2` + `gemini-3-pro-image-preview`. This means **there is a newer deployed version** of the edge function that differs from the code in the repository. The repo code is stale.
+**Root cause confirmed**: `GenerateBaseAnglesModal` calls `process-generation`, which directly calls OpenAI+Gemini and updates the generation record — bypassing `generation_jobs` and `generation_events` entirely. The `create-generation` edge function exists deployed but is **not in the repo**.
 
-3. **System prompt is a placeholder**: `UGC_SYSTEM_PROMPT = "COLE_O_PROMPT_GIGANTE_AQUI"` — a literal placeholder string.
+### Changes Required
 
-4. **The Edge Function requires both `base_asset_id` AND `reference_asset_id`** (line 53: throws if either URL is missing), but the frontend sets `base_asset_id` to `null` for avatar workspace generations. This means the function should be failing for all avatar-generated requests unless the deployed version differs.
-
-### Debugging Plan (Observability First)
-
-Rather than fixing the prompt pipeline now, the plan focuses on making the full request/response chain visible.
-
----
-
-### Step 1: Persist a debug snapshot on generation creation (Frontend)
+#### 1. Switch Avatar flow to `create-generation` (Frontend)
 
 **File**: `src/components/avatar/GenerateBaseAnglesModal.tsx`
 
-Save the complete frontend intent into `ai_parameters` so it's always queryable:
+Replace `supabase.functions.invoke("process-generation", ...)` with `supabase.functions.invoke("create-generation", ...)`, passing the same payload shape that `QuickFlow.tsx` uses:
 
 ```typescript
-ai_parameters: {
-  // existing fields...
-  _debug: {
-    selectedRefAssetIds: referenceAssetIds,
-    selectedShotId: shotId,
-    shotLabel: SHOT_LIST.find(s => s.id === shotId)?.label,
-    focusPiece: focusPiece.trim() || null,
-    refCount: referenceAssetIds.length,
-    submittedAt: new Date().toISOString(),
-  }
-}
+supabase.functions.invoke("create-generation", {
+  body: {
+    toolType: "avatar_base_pack_generation",
+    pipelineType: "multimodal_image_generation",
+    sourceMode: "avatar_workspace",
+    referenceAssetIds: referenceAssetIds,
+    generationId: gen.id,  // pass the pre-created generation ID
+    input: {
+      shotId,
+      focusPiece: focusPiece.trim() || undefined,
+      geminiPreferredModel: "gemini-3-pro-image-preview",
+      promptPackId: "ugc-avatar-reference-pack-v1",
+    },
+  },
+})
 ```
 
-No schema change needed — `ai_parameters` is JSONB.
+#### 2. Add `_debug.pipeline` marker to generation records
 
----
+**File**: `src/components/avatar/GenerateBaseAnglesModal.tsx`
 
-### Step 2: Sync the Edge Function code from deployed version
+Add `pipeline: "create-generation"` to the `_debug` object in `ai_parameters` so every generation self-documents which pipeline handled it.
+
+#### 3. Add guardrail to `process-generation` (Edge Function)
 
 **File**: `supabase/functions/process-generation/index.ts`
 
-The repo code is stale. We need to either:
-- **(a)** Pull the actual deployed code (which uses `gpt-5.2` and `gemini-3-pro-image-preview` per logs), or
-- **(b)** Accept the repo code as source of truth and redeploy.
+At the top of the handler, after fetching the generation record, add:
 
-**Recommendation**: Ask the user which version is authoritative. The deployed function is clearly different from the repo.
+```typescript
+if (gen.pipeline_type === "multimodal_image_generation") {
+  throw new Error("multimodal_image_generation must use create-generation pipeline");
+}
+```
 
----
-
-### Step 3: Add a debug detail panel to GenerationDetailModal
-
-**File**: `src/components/studio/GenerationDetailModal.tsx`
-
-Add a collapsible "Debug Info" section showing:
-- `ai_parameters.shotId` and `ai_parameters._debug.shotLabel` — what angle the user selected
-- `ai_parameters._debug.selectedRefAssetIds` — which references were chosen
-- `ai_parameters.extracted_positive_prompt` — the prompt sent to Gemini
-- `ai_parameters.openai_raw_response` — full OpenAI output
-- `ai_parameters.geminiPreferredModel` — requested model
-- Generation `reference_asset_id` — what the backend actually used
-- Mismatch indicator: compare `_debug.selectedRefAssetIds[0]` vs `reference_asset_id`
-
-Also used in Avatar Details via the Generation History "Ver detalhes" button.
-
----
-
-### Step 4: Surface debug info in GenerationHistorySection
-
-**File**: `src/components/avatar/GenerationHistorySection.tsx`
-
-Add the shot label as a small tag on each generation row (read from `ai_parameters.shotId` → lookup in SHOT_LIST).
-
----
+This prevents accidental future use of the legacy path for avatar/multimodal flows.
 
 ### Affected Files
 
 | File | Change |
 |---|---|
-| `src/components/avatar/GenerateBaseAnglesModal.tsx` | Add `_debug` snapshot to `ai_parameters` |
-| `src/components/studio/GenerationDetailModal.tsx` | Add collapsible debug section showing full request chain |
-| `src/components/avatar/GenerationHistorySection.tsx` | Show shot label tag per row |
-| `supabase/functions/process-generation/index.ts` | **Needs sync** — repo code is stale vs deployed |
+| `src/components/avatar/GenerateBaseAnglesModal.tsx` | Switch from `process-generation` to `create-generation`; add pipeline debug marker |
+| `supabase/functions/process-generation/index.ts` | Add guardrail rejecting `multimodal_image_generation` |
 
-### No Schema Changes
+### Risks & Mitigations
 
-All debug data fits in existing `ai_parameters` JSONB column.
-
-### Risks
-
-| Risk | Level |
+| Risk | Mitigation |
 |---|---|
-| `_debug` field slightly increases row size | Low — negligible |
-| Edge function repo/deployed mismatch | **High** — must resolve before any EF edits |
-| Detail modal used from both Studio and Avatar Details contexts | Medium — need to ensure it works with both data shapes |
+| `create-generation` is deployed but not in repo — we can't verify its contract | Use the same payload shape as `QuickFlow.tsx` which already works |
+| Studio batch flow (`useBatches.ts`) also uses `process-generation` | Out of scope — Studio uses `text_to_image` pipeline, not affected by the guardrail |
+| Pre-created generation IDs may conflict with `create-generation`'s own insert logic | Pass `generationId` so the edge function can adopt the existing record instead of creating a new one; if unsupported, remove client-side insert and let the edge function create the record |
 
 ### Implementation Order
 
-1. Add `_debug` snapshot to `GenerateBaseAnglesModal` (frontend-only, safe)
-2. Add debug section to `GenerationDetailModal` (frontend-only, safe)
-3. Add shot label to `GenerationHistorySection` rows (frontend-only, safe)
-4. **Separately**: resolve Edge Function repo vs deployed discrepancy with user
-
-### Critical Question for User
-
-The deployed `process-generation` function uses `gpt-5.2` and `gemini-3-pro-image-preview`, but the repo code uses `gpt-4o` and `gemini-2.0-flash-exp`. **Which version is the source of truth?** We should not edit the Edge Function until this is resolved.
+1. Add guardrail to `process-generation` edge function
+2. Switch `GenerateBaseAnglesModal` to call `create-generation`
+3. Add `pipeline` debug marker
+4. Test end-to-end: verify new generations have `generation_jobs` and `generation_events` rows
 
