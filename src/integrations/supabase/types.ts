@@ -41,6 +41,89 @@ export type Database = {
         }
         Relationships: []
       }
+      avatar_profiles: {
+        Row: {
+          cover_asset_id: string | null
+          created_at: string
+          id: string
+          identity_spec: Json
+          name: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cover_asset_id?: string | null
+          created_at?: string
+          id?: string
+          identity_spec?: Json
+          name: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cover_asset_id?: string | null
+          created_at?: string
+          id?: string
+          identity_spec?: Json
+          name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avatar_profiles_cover_asset_id_fkey"
+            columns: ["cover_asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      avatar_reference_assets: {
+        Row: {
+          asset_id: string
+          avatar_profile_id: string
+          created_at: string
+          id: string
+          role: string
+          sort_order: number
+        }
+        Insert: {
+          asset_id: string
+          avatar_profile_id: string
+          created_at?: string
+          id?: string
+          role?: string
+          sort_order?: number
+        }
+        Update: {
+          asset_id?: string
+          avatar_profile_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avatar_reference_assets_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "avatar_reference_assets_avatar_profile_id_fkey"
+            columns: ["avatar_profile_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generation_batches: {
         Row: {
           created_at: string
@@ -62,41 +145,252 @@ export type Database = {
         }
         Relationships: []
       }
+      generation_events: {
+        Row: {
+          created_at: string
+          generation_id: string
+          id: string
+          job_id: string | null
+          message: string | null
+          payload: Json
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          generation_id: string
+          id?: string
+          job_id?: string | null
+          message?: string | null
+          payload?: Json
+          type: string
+        }
+        Update: {
+          created_at?: string
+          generation_id?: string
+          id?: string
+          job_id?: string | null
+          message?: string | null
+          payload?: Json
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_events_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "generations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generation_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "generation_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_jobs: {
+        Row: {
+          attempt: number
+          batch_id: string | null
+          created_at: string
+          error_payload: Json
+          generation_id: string
+          id: string
+          idempotency_key: string
+          input_payload: Json
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          model: string | null
+          next_run_at: string
+          output_payload: Json
+          priority: number
+          provider: string | null
+          status: string
+          step: string
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          batch_id?: string | null
+          created_at?: string
+          error_payload?: Json
+          generation_id: string
+          id?: string
+          idempotency_key: string
+          input_payload?: Json
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          model?: string | null
+          next_run_at?: string
+          output_payload?: Json
+          priority?: number
+          provider?: string | null
+          status?: string
+          step: string
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          batch_id?: string | null
+          created_at?: string
+          error_payload?: Json
+          generation_id?: string
+          id?: string
+          idempotency_key?: string
+          input_payload?: Json
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          model?: string | null
+          next_run_at?: string
+          output_payload?: Json
+          priority?: number
+          provider?: string | null
+          status?: string
+          step?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_jobs_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "generation_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generation_jobs_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_reference_assets: {
+        Row: {
+          asset_id: string
+          created_at: string
+          generation_id: string
+          id: string
+          role: string
+          sort_order: number
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          generation_id: string
+          id?: string
+          role?: string
+          sort_order?: number
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          generation_id?: string
+          id?: string
+          role?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_reference_assets_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generation_reference_assets_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generations: {
         Row: {
           ai_parameters: Json
+          avatar_profile_id: string | null
           base_asset_id: string | null
-          batch_id: string
+          batch_id: string | null
           created_at: string
+          current_step: string | null
+          error_code: string | null
+          extracted_prompt: string | null
+          finished_at: string | null
           id: string
+          pipeline_type: string
+          progress_pct: number
           reference_asset_id: string
+          result_asset_id: string | null
           result_url: string | null
+          retry_count: number
+          source_mode: string | null
+          started_at: string | null
           status: string
+          tool_type: string | null
           user_id: string
         }
         Insert: {
           ai_parameters?: Json
+          avatar_profile_id?: string | null
           base_asset_id?: string | null
-          batch_id: string
+          batch_id?: string | null
           created_at?: string
+          current_step?: string | null
+          error_code?: string | null
+          extracted_prompt?: string | null
+          finished_at?: string | null
           id?: string
+          pipeline_type?: string
+          progress_pct?: number
           reference_asset_id: string
+          result_asset_id?: string | null
           result_url?: string | null
+          retry_count?: number
+          source_mode?: string | null
+          started_at?: string | null
           status?: string
+          tool_type?: string | null
           user_id: string
         }
         Update: {
           ai_parameters?: Json
+          avatar_profile_id?: string | null
           base_asset_id?: string | null
-          batch_id?: string
+          batch_id?: string | null
           created_at?: string
+          current_step?: string | null
+          error_code?: string | null
+          extracted_prompt?: string | null
+          finished_at?: string | null
           id?: string
+          pipeline_type?: string
+          progress_pct?: number
           reference_asset_id?: string
+          result_asset_id?: string | null
           result_url?: string | null
+          retry_count?: number
+          source_mode?: string | null
+          started_at?: string | null
           status?: string
+          tool_type?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "generations_avatar_profile_id_fkey"
+            columns: ["avatar_profile_id"]
+            isOneToOne: false
+            referencedRelation: "avatar_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "generations_base_asset_id_fkey"
             columns: ["base_asset_id"]
@@ -114,6 +408,13 @@ export type Database = {
           {
             foreignKeyName: "generations_reference_asset_id_fkey"
             columns: ["reference_asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generations_result_asset_id_fkey"
+            columns: ["result_asset_id"]
             isOneToOne: false
             referencedRelation: "assets"
             referencedColumns: ["id"]
@@ -159,6 +460,45 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      variation_presets: {
+        Row: {
+          category: string
+          constraints: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          prompt_template: string
+          scope: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          category: string
+          constraints?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          prompt_template: string
+          scope?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          category?: string
+          constraints?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          prompt_template?: string
+          scope?: string
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
