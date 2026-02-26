@@ -59,6 +59,10 @@ export function CreateAvatarModal({ open, onOpenChange }: Props) {
     mutationFn: async () => {
       if (!user || !file) throw new Error("Missing user or file");
 
+      // Verify active session before proceeding
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sessão expirada. Faça login novamente para continuar.");
+
       // Step 1: Upload to storage
       setStep("uploading");
       const fileUrl = await uploadAssetFile(user.id, file);
