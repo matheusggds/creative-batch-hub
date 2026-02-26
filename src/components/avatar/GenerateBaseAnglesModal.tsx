@@ -134,6 +134,14 @@ export function GenerateBaseAnglesModal({
           shotId,
           focusPiece: focusPiece.trim() || undefined,
           geminiPreferredModel: "gemini-3-pro-image-preview",
+          _debug: {
+            selectedRefAssetIds: referenceAssetIds,
+            selectedShotId: shotId,
+            shotLabel: SHOT_LIST.find((s) => s.id === shotId)?.label ?? shotId,
+            focusPiece: focusPiece.trim() || null,
+            refCount: referenceAssetIds.length,
+            submittedAt: new Date().toISOString(),
+          },
         } as unknown as Record<string, never>,
       }));
 

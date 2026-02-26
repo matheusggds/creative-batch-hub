@@ -14,6 +14,7 @@ interface GenerationFull {
   finished_at: string | null;
   extracted_prompt: string | null;
   ai_parameters: Record<string, unknown>;
+  reference_asset_id: string;
 }
 
 interface GenerationJob {
@@ -61,7 +62,7 @@ export function useGenerationStatus(generationId: string | null) {
       const { data: gen, error: genErr } = await supabase
         .from("generations")
         .select(
-          "id, status, current_step, progress_pct, result_url, error_code, created_at, started_at, finished_at, extracted_prompt, ai_parameters"
+          "id, status, current_step, progress_pct, result_url, error_code, created_at, started_at, finished_at, extracted_prompt, ai_parameters, reference_asset_id"
         )
         .eq("id", generationId!)
         .maybeSingle();
