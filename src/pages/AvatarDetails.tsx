@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { GenerateBaseAnglesModal } from "@/components/avatar/GenerateBaseAnglesModal";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvatarProfile } from "@/hooks/useAvatarProfile";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +32,7 @@ export default function AvatarDetails() {
   const { user, signOut } = useAuth();
   const { data: avatar, isLoading, error } = useAvatarProfile(id);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [anglesOpen, setAnglesOpen] = useState(false);
 
   const toggleSelect = (refId: string) => {
     setSelectedIds((prev) => {
@@ -133,7 +135,7 @@ export default function AvatarDetails() {
 
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-2 mt-4">
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="gap-2" onClick={() => setAnglesOpen(true)}>
                 <Wand2 className="h-4 w-4" />
                 Gerar Ângulos Base
               </Button>
@@ -235,6 +237,14 @@ export default function AvatarDetails() {
             })}
           </div>
         )}
+
+        {/* Generate Base Angles Modal */}
+        <GenerateBaseAnglesModal
+          open={anglesOpen}
+          onOpenChange={setAnglesOpen}
+          avatarProfileId={avatar.id}
+          references={avatar.references}
+        />
       </main>
     </div>
   );
