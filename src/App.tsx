@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Auth from "./pages/Auth";
 import Studio from "./pages/Studio";
 import AvatarLibrary from "./pages/AvatarLibrary";
+import AvatarDetails from "./pages/AvatarDetails";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/" element={<PublicRoute><Auth /></PublicRoute>} />
             <Route path="/studio" element={<ProtectedRoute><Studio /></ProtectedRoute>} />
             <Route path="/avatars" element={<ProtectedRoute><AvatarLibrary /></ProtectedRoute>} />
+            <Route path="/avatars/:id" element={<ProtectedRoute><AvatarDetails /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

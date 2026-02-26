@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { useAvatarProfiles, AvatarProfileWithMeta } from "@/hooks/useAvatarProfiles";
+import { useAvatarProfiles } from "@/hooks/useAvatarProfiles";
 import { AvatarProfileCard } from "@/components/avatar/AvatarProfileCard";
-import { AvatarDetailModal } from "@/components/avatar/AvatarDetailModal";
 import { CreateAvatarModal } from "@/components/avatar/CreateAvatarModal";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,7 +11,6 @@ import { useNavigate } from "react-router-dom";
 export default function AvatarLibrary() {
   const { user, signOut } = useAuth();
   const { data: avatars, isLoading, error } = useAvatarProfiles();
-  const [selectedAvatar, setSelectedAvatar] = useState<AvatarProfileWithMeta | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -106,21 +104,12 @@ export default function AvatarLibrary() {
               <AvatarProfileCard
                 key={avatar.id}
                 avatar={avatar}
-                onClick={() => setSelectedAvatar(avatar)}
+                onClick={() => navigate(`/avatars/${avatar.id}`)}
               />
             ))}
           </div>
         )}
       </main>
-
-      {/* Detail Modal */}
-      <AvatarDetailModal
-        avatar={selectedAvatar}
-        open={!!selectedAvatar}
-        onOpenChange={(open) => {
-          if (!open) setSelectedAvatar(null);
-        }}
-      />
 
       {/* Create Modal */}
       <CreateAvatarModal open={createOpen} onOpenChange={setCreateOpen} />
