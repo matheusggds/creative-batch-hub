@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import type { AvatarReferenceAsset } from "@/hooks/useAvatarProfile";
 import {
   Dialog,
@@ -18,18 +19,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Loader2,
   AlertCircle,
   ImageIcon,
   CheckCircle2,
-  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,17 +43,14 @@ const SHOT_LIST = [
   { id: "FB8_LIFESTYLE_UGC", label: "Lifestyle UGC", group: "Full Body" },
 ] as const;
 
+const SHOT_GROUPS = [...new Set(SHOT_LIST.map((s) => s.group))];
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   avatarProfileId: string;
   references: AvatarReferenceAsset[];
   onGenerationCreated?: (generationId: string) => void;
-}
-
-interface SuccessResult {
-  generationId?: string;
-  jobId?: string;
 }
 
 export function GenerateBaseAnglesModal({
@@ -70,16 +60,19 @@ export function GenerateBaseAnglesModal({
   references,
   onGenerationCreated,
 }: Props) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+
   const [selectedRefIds, setSelectedRefIds] = useState<Set<string>>(new Set());
-  const [shotId, setShotId] = useState<string>("");
+  const [selectedShotIds, setSelectedShotIds] = useState<Set<string>>(new Set());
   const [focusPiece, setFocusPiece] = useState("");
-  const [result, setResult] = useState<SuccessResult | null>(null);
+  const [createdCount, setCreatedCount] = useState<number | null>(null);
 
   const reset = () => {
     setSelectedRefIds(new Set());
-    setShotId("");
+    setSelectedShotIds(new Set());
     setFocusPiece("");
-    setResult(null);
+    setCreatedCount(null);
   };
 
   const toggleRef = (assetId: string) => {
@@ -98,39 +91,99 @@ export function GenerateBaseAnglesModal({
     });
   };
 
+  const toggleShot = (shotId: string) => {
+    setSelectedShotIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(shotId)) next.delete(shotId);
+      else next.add(shotId);
+      return next;
+    });
+  };
+
+  const toggleGroup = (group: string) => {
+    const groupShots = SHOT_LIST.filter((s) => s.group === group).map((s) => s.id);
+    const allSelected = groupShots.every((id) => selectedShotIds.has(id));
+    setSelectedShotIds((prev) => {
+      const next = new Set(prev);
+      groupShots.forEach((id) => {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      });
+      return next;
+    });
+  };
+
   const mutation = useMutation({
     mutationFn: async () => {
-      const referenceAssetIds = Array.from(selectedRefIds);
+      if (!user) throw new Error("Not authenticated");
 
-      const { data, error } = await supabase.functions.invoke(
-        "create-generation",
-        {
-          body: {
-            toolType: "avatar_base_pack_generation",
-            pipelineType: "multimodal_image_generation",
-            sourceMode: "avatar_workspace",
-            avatarProfileId,
-            referenceAssetIds,
-            input: {
-              promptPackId: "ugc-avatar-reference-pack-v1",
-              shotId,
-              focusPiece: focusPiece.trim() || undefined,
-              geminiPreferredModel: "gemini-3-pro-image-preview",
-            },
-          },
-        }
+      const referenceAssetIds = Array.from(selectedRefIds);
+      const shotIds = Array.from(selectedShotIds);
+
+      // Create one generation per selected shot
+      const generations = shotIds.map((shotId) => ({
+        user_id: user.id,
+        avatar_profile_id: avatarProfileId,
+        reference_asset_id: referenceAssetIds[0], // backward compat with process-generation
+        status: "pending" as const,
+        pipeline_type: "multimodal_image_generation",
+        tool_type: "avatar_base_pack_generation",
+        source_mode: "avatar_workspace",
+        ai_parameters: {
+          promptPackId: "ugc-avatar-reference-pack-v1",
+          shotId,
+          focusPiece: focusPiece.trim() || undefined,
+          geminiPreferredModel: "gemini-3-pro-image-preview",
+        } as unknown as Record<string, never>,
+      }));
+
+      const { data: insertedGens, error: genError } = await supabase
+        .from("generations")
+        .insert(generations)
+        .select();
+
+      if (genError) throw genError;
+      if (!insertedGens?.length) throw new Error("No generations created");
+
+      // For each generation, populate generation_reference_assets
+      const refAssetRows = insertedGens.flatMap((gen) =>
+        referenceAssetIds.map((assetId, idx) => ({
+          generation_id: gen.id,
+          asset_id: assetId,
+          role: "reference",
+          sort_order: idx,
+        }))
       );
 
-      if (error) throw error;
-      return data as SuccessResult;
+      if (refAssetRows.length > 0) {
+        const { error: refError } = await supabase
+          .from("generation_reference_assets")
+          .insert(refAssetRows);
+        if (refError) console.error("generation_reference_assets insert error:", refError);
+      }
+
+      // Fire-and-forget: invoke process-generation for each
+      for (const gen of insertedGens) {
+        supabase.functions
+          .invoke("process-generation", {
+            body: { generation_id: gen.id },
+          })
+          .then(({ error }) => {
+            if (error) console.error(`Edge function error for ${gen.id}:`, error);
+          });
+      }
+
+      return insertedGens;
     },
     onSuccess: (data) => {
-      setResult(data);
-      toast.success("Geração criada com sucesso!");
-      if (data?.generationId) onGenerationCreated?.(data.generationId);
+      setCreatedCount(data.length);
+      toast.success(`${data.length} geração(ões) criada(s) com sucesso!`);
+      qc.invalidateQueries({ queryKey: ["avatar_generations", avatarProfileId] });
+      // Notify parent with first generation for status panel
+      if (data[0]?.id) onGenerationCreated?.(data[0].id);
     },
     onError: (err: Error) => {
-      toast.error("Erro ao criar geração.");
+      toast.error("Erro ao criar gerações.");
       console.error("GenerateBaseAngles error:", err);
     },
   });
@@ -138,13 +191,8 @@ export function GenerateBaseAnglesModal({
   const canSubmit =
     selectedRefIds.size >= 1 &&
     selectedRefIds.size <= 3 &&
-    shotId.length > 0 &&
+    selectedShotIds.size > 0 &&
     !mutation.isPending;
-
-  const copyId = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("ID copiado!");
-  };
 
   return (
     <Dialog
@@ -159,51 +207,22 @@ export function GenerateBaseAnglesModal({
         <DialogHeader>
           <DialogTitle>Gerar Ângulos Base</DialogTitle>
           <DialogDescription>
-            Selecione até 3 imagens de referência e um ângulo para gerar.
+            Selecione até 3 referências e os ângulos desejados.
           </DialogDescription>
         </DialogHeader>
 
-        {result ? (
+        {createdCount !== null ? (
           /* Success state */
           <div className="flex flex-col items-center py-6 gap-4">
             <div className="rounded-full bg-primary/10 p-4">
               <CheckCircle2 className="h-8 w-8 text-primary" />
             </div>
-            <h3 className="font-semibold text-lg">Geração iniciada!</h3>
-            <div className="space-y-2 w-full">
-              {result.generationId && (
-                <div className="flex items-center justify-between rounded-lg border border-border/50 p-3">
-                  <div>
-                    <span className="text-xs text-muted-foreground">Generation ID</span>
-                    <p className="text-sm font-mono truncate max-w-[280px]">{result.generationId}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => copyId(result.generationId!)}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              )}
-              {result.jobId && (
-                <div className="flex items-center justify-between rounded-lg border border-border/50 p-3">
-                  <div>
-                    <span className="text-xs text-muted-foreground">Job ID</span>
-                    <p className="text-sm font-mono truncate max-w-[280px]">{result.jobId}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => copyId(result.jobId!)}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              )}
-            </div>
+            <h3 className="font-semibold text-lg">
+              {createdCount} geração{createdCount !== 1 ? "ões" : ""} iniciada{createdCount !== 1 ? "s" : ""}!
+            </h3>
+            <p className="text-sm text-muted-foreground text-center max-w-xs">
+              Acompanhe o progresso no Histórico de Gerações abaixo.
+            </p>
             <Button
               className="mt-2"
               onClick={() => {
@@ -219,20 +238,20 @@ export function GenerateBaseAnglesModal({
           <>
             <div className="space-y-4 py-1 flex-1 overflow-hidden flex flex-col">
               {/* Reference image selection */}
-              <div className="space-y-2 flex-1 min-h-0 flex flex-col">
+              <div className="space-y-2 flex-shrink-0">
                 <Label>
                   Imagens de Referência{" "}
                   <span className="text-muted-foreground font-normal">
                     ({selectedRefIds.size}/3)
                   </span>
                 </Label>
-                <ScrollArea className="flex-1 max-h-[200px] rounded-lg border border-border/50 p-2">
+                <ScrollArea className="max-h-[160px] rounded-lg border border-border/50 p-2">
                   {references.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
                       Nenhuma imagem disponível.
                     </p>
                   ) : (
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                       {references.map((ref) => {
                         const isSelected = selectedRefIds.has(ref.asset_id);
                         return (
@@ -254,7 +273,7 @@ export function GenerateBaseAnglesModal({
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center bg-muted">
-                                <ImageIcon className="h-5 w-5 text-muted-foreground/40" />
+                                <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
                               </div>
                             )}
                             <div
@@ -277,33 +296,65 @@ export function GenerateBaseAnglesModal({
                 </ScrollArea>
               </div>
 
-              {/* Shot selection */}
-              <div className="space-y-2">
-                <Label htmlFor="shot-select">Ângulo / Shot</Label>
-                <Select value={shotId} onValueChange={setShotId}>
-                  <SelectTrigger id="shot-select">
-                    <SelectValue placeholder="Selecione um ângulo…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SHOT_LIST.map((shot) => (
-                      <SelectItem key={shot.id} value={shot.id}>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0 shrink-0"
+              {/* Shot multi-selection */}
+              <div className="space-y-2 flex-1 min-h-0 flex flex-col">
+                <Label>
+                  Ângulos / Shots{" "}
+                  <span className="text-muted-foreground font-normal">
+                    ({selectedShotIds.size} selecionado{selectedShotIds.size !== 1 ? "s" : ""})
+                  </span>
+                </Label>
+                <ScrollArea className="flex-1 max-h-[200px] rounded-lg border border-border/50 p-2">
+                  <div className="space-y-3">
+                    {SHOT_GROUPS.map((group) => {
+                      const groupShots = SHOT_LIST.filter((s) => s.group === group);
+                      const allSelected = groupShots.every((s) => selectedShotIds.has(s.id));
+                      const someSelected = groupShots.some((s) => selectedShotIds.has(s.id));
+                      return (
+                        <div key={group} className="space-y-1">
+                          <button
+                            type="button"
+                            className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => toggleGroup(group)}
                           >
-                            {shot.group}
-                          </Badge>
-                          <span>{shot.label}</span>
+                            <Checkbox
+                              checked={allSelected}
+                              className="h-3.5 w-3.5"
+                              // indeterminate-like styling via data attribute
+                              data-state={someSelected && !allSelected ? "indeterminate" : allSelected ? "checked" : "unchecked"}
+                              onClick={(e) => e.stopPropagation()}
+                              onCheckedChange={() => toggleGroup(group)}
+                            />
+                            {group}
+                          </button>
+                          <div className="flex flex-wrap gap-1.5 pl-5">
+                            {groupShots.map((shot) => {
+                              const isSelected = selectedShotIds.has(shot.id);
+                              return (
+                                <Badge
+                                  key={shot.id}
+                                  variant={isSelected ? "default" : "outline"}
+                                  className={`cursor-pointer text-xs transition-all ${
+                                    isSelected
+                                      ? ""
+                                      : "hover:bg-accent hover:text-accent-foreground"
+                                  }`}
+                                  onClick={() => toggleShot(shot.id)}
+                                >
+                                  {shot.label}
+                                </Badge>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
               </div>
 
               {/* Focus piece */}
-              <div className="space-y-2">
+              <div className="space-y-2 flex-shrink-0">
                 <Label htmlFor="focus-piece">
                   Focus Piece{" "}
                   <span className="text-muted-foreground font-normal">(opcional)</span>
@@ -348,7 +399,9 @@ export function GenerateBaseAnglesModal({
                 {mutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : null}
-                {mutation.isPending ? "Enviando…" : "Gerar Ângulo"}
+                {mutation.isPending
+                  ? "Enviando…"
+                  : `Gerar ${selectedShotIds.size || ""} Ângulo${selectedShotIds.size !== 1 ? "s" : ""}`}
               </Button>
             </DialogFooter>
           </>
