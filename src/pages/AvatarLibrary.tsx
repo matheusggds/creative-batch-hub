@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAvatarProfiles, AvatarProfileWithMeta } from "@/hooks/useAvatarProfiles";
 import { AvatarProfileCard } from "@/components/avatar/AvatarProfileCard";
 import { AvatarDetailModal } from "@/components/avatar/AvatarDetailModal";
+import { CreateAvatarModal } from "@/components/avatar/CreateAvatarModal";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +13,7 @@ export default function AvatarLibrary() {
   const { user, signOut } = useAuth();
   const { data: avatars, isLoading, error } = useAvatarProfiles();
   const [selectedAvatar, setSelectedAvatar] = useState<AvatarProfileWithMeta | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const navigate = useNavigate();
 
   return (
@@ -46,7 +48,7 @@ export default function AvatarLibrary() {
               Gerencie seus perfis de avatar e imagens de referência.
             </p>
           </div>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             Criar Avatar
           </Button>
@@ -90,7 +92,7 @@ export default function AvatarLibrary() {
             <p className="text-sm text-muted-foreground mt-1 max-w-sm">
               Crie seu primeiro perfil de avatar para começar a gerar conteúdo.
             </p>
-            <Button className="gap-2 mt-4">
+            <Button className="gap-2 mt-4" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
               Criar Avatar
             </Button>
@@ -119,6 +121,9 @@ export default function AvatarLibrary() {
           if (!open) setSelectedAvatar(null);
         }}
       />
+
+      {/* Create Modal */}
+      <CreateAvatarModal open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }
