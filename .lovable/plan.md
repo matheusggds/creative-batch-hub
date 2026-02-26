@@ -77,4 +77,3 @@ Add to project knowledge:
 - "Gerar Ângulos Base" creates generation records client-side and invokes `process-generation` per generation. There is no `create-generation` edge function.
 - `generation_reference_assets` should be populated for all generations even though `process-generation` currently only reads `reference_asset_id`. This prepares for future edge function updates.
 - Each shot/angle = 1 generation record. Multiple angles in one flow = multiple generation records sharing the same reference set.
-
