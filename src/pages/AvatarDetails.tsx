@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GenerateBaseAnglesModal } from "@/components/avatar/GenerateBaseAnglesModal";
+import { GenerationStatusPanel } from "@/components/avatar/GenerationStatusPanel";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvatarProfile } from "@/hooks/useAvatarProfile";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,6 +34,7 @@ export default function AvatarDetails() {
   const { data: avatar, isLoading, error } = useAvatarProfile(id);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [anglesOpen, setAnglesOpen] = useState(false);
+  const [activeGenerationId, setActiveGenerationId] = useState<string | null>(null);
 
   const toggleSelect = (refId: string) => {
     setSelectedIds((prev) => {
@@ -238,12 +240,18 @@ export default function AvatarDetails() {
           </div>
         )}
 
+        {/* Generation Status Panel */}
+        {activeGenerationId && (
+          <GenerationStatusPanel generationId={activeGenerationId} />
+        )}
+
         {/* Generate Base Angles Modal */}
         <GenerateBaseAnglesModal
           open={anglesOpen}
           onOpenChange={setAnglesOpen}
           avatarProfileId={avatar.id}
           references={avatar.references}
+          onGenerationCreated={(gId) => setActiveGenerationId(gId)}
         />
       </main>
     </div>

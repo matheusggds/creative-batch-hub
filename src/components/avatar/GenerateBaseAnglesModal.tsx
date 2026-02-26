@@ -55,6 +55,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   avatarProfileId: string;
   references: AvatarReferenceAsset[];
+  onGenerationCreated?: (generationId: string) => void;
 }
 
 interface SuccessResult {
@@ -67,6 +68,7 @@ export function GenerateBaseAnglesModal({
   onOpenChange,
   avatarProfileId,
   references,
+  onGenerationCreated,
 }: Props) {
   const [selectedRefIds, setSelectedRefIds] = useState<Set<string>>(new Set());
   const [shotId, setShotId] = useState<string>("");
@@ -125,6 +127,7 @@ export function GenerateBaseAnglesModal({
     onSuccess: (data) => {
       setResult(data);
       toast.success("Geração criada com sucesso!");
+      if (data?.generationId) onGenerationCreated?.(data.generationId);
     },
     onError: (err: Error) => {
       toast.error("Erro ao criar geração.");
