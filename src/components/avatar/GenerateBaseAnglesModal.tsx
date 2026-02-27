@@ -70,18 +70,22 @@ export function GenerateBaseAnglesModal({
   const [focusPiece, setFocusPiece] = useState("");
   const [createdCount, setCreatedCount] = useState<number | null>(null);
 
-  // Sync preselected asset IDs every time the modal opens
-  // Stabilize dependency to avoid infinite re-renders from new array refs
+  const availableReferenceIds = new Set(references.map((ref) => ref.asset_id));
+
+  // Sync preselected IDs from Avatar Library every time the modal opens
   const preselectedKey = preselectedAssetIds?.slice().sort().join(",") ?? "";
   useEffect(() => {
     if (!open) return;
-    const ids = preselectedKey ? preselectedKey.split(",") : [];
-    if (ids.length > 0) {
-      setSelectedRefIds(new Set(ids.slice(0, 3)));
+
+    const parsedIds = preselectedKey ? preselectedKey.split(",") : [];
+    const validIds = parsedIds.filter((id) => availableReferenceIds.has(id)).slice(0, 3);
+
+    if (validIds.length > 0) {
+      setSelectedRefIds(new Set(validIds));
     } else {
       setSelectedRefIds(new Set());
     }
-  }, [open, preselectedKey]);
+  }, [open, preselectedKey, references]);
 
   const reset = () => {
     setSelectedRefIds(new Set());
@@ -132,8 +136,16 @@ export function GenerateBaseAnglesModal({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
 
-      const referenceAssetIds = Array.from(selectedRefIds);
+      const referenceAssetIds = Array.from(selectedRefIds).filter((id) => availableReferenceIds.has(id));
       const shotIds = Array.from(selectedShotIds);
+
+      if (referenceAssetIds.length < 1) {
+        throw new Error("Selecione ao menos 1 imagem de referência.");
+      }
+
+      if (shotIds.length < 1) {
+        throw new Error("Selecione ao menos 1 ângulo.");
+      }
 
       // Create one generation per selected shot
       const generations = shotIds.map((shotId) => ({
@@ -226,9 +238,11 @@ export function GenerateBaseAnglesModal({
     },
   });
 
+  const validReferenceCount = Array.from(selectedRefIds).filter((id) => availableReferenceIds.has(id)).length;
+
   const canSubmit =
-    selectedRefIds.size >= 1 &&
-    selectedRefIds.size <= 3 &&
+    validReferenceCount >= 1 &&
+    validReferenceCount <= 3 &&
     selectedShotIds.size > 0 &&
     !mutation.isPending;
 
@@ -277,12 +291,17 @@ export function GenerateBaseAnglesModal({
             <div className="space-y-4 py-1 flex-1 overflow-hidden flex flex-col">
               {/* Reference image selection */}
               <div className="space-y-2 flex-shrink-0">
-                <Label>
-                  Imagens de Referência{" "}
-                  <span className="text-muted-foreground font-normal">
-                    ({selectedRefIds.size}/3)
-                  </span>
-                </Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label>
+                    Imagens de Referência{" "}
+                    <span className="text-muted-foreground font-normal">
+                      ({validReferenceCount}/3)
+                    </span>
+                  </Label>
+                  {preselectedKey && validReferenceCount > 0 ? (
+                    <span className="text-xs text-muted-foreground">Pré-carregado da biblioteca</span>
+                  ) : null}
+                </div>
                 <ScrollArea className="max-h-[160px] rounded-lg border border-border/50 p-2">
                   {references.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
