@@ -318,10 +318,30 @@ export default function AvatarDetails() {
 }
 
 /* ── Helpers ── */
+const SHOT_LABELS: Record<string, string> = {
+  TH1_FRONT_NEUTRAL: "Frontal Neutro",
+  TH2_FRONT_LEFT: "Frontal Esquerda",
+  TH3_FRONT_RIGHT: "Frontal Direita",
+  TH4_LEFT_PROFILE: "Perfil Esquerdo",
+  TH5_RIGHT_PROFILE: "Perfil Direito",
+  TH6_THREE_QUARTER_LEFT: "¾ Esquerda",
+  TH7_THREE_QUARTER_RIGHT: "¾ Direita",
+  FB1_FULL_FRONT: "Corpo Frontal",
+  FB2_FULL_LEFT: "Corpo Esquerda",
+  FB3_FULL_RIGHT: "Corpo Direita",
+  FB4_FULL_BACK: "Corpo Costas",
+  FB5_THREE_QUARTER_FRONT_LEFT: "Corpo ¾ Esq.",
+  FB6_THREE_QUARTER_FRONT_RIGHT: "Corpo ¾ Dir.",
+  FB7_FULL_SITTING: "Corpo Sentado",
+};
+
 function getShotLabel(gen?: AvatarGeneration): string | null {
   if (!gen?.ai_parameters || typeof gen.ai_parameters !== "object") return null;
   const params = gen.ai_parameters as Record<string, unknown>;
-  if ("shot_label" in params) return String(params.shot_label);
+  if ("shot_label" in params) {
+    const raw = String(params.shot_label);
+    return SHOT_LABELS[raw] ?? raw.replace(/_/g, " ");
+  }
   return null;
 }
 
