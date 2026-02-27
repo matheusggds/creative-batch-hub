@@ -70,12 +70,18 @@ export function GenerateBaseAnglesModal({
   const [focusPiece, setFocusPiece] = useState("");
   const [createdCount, setCreatedCount] = useState<number | null>(null);
 
-  // Sync preselected asset IDs when modal opens
+  // Sync preselected asset IDs every time the modal opens
+  // Stabilize dependency to avoid infinite re-renders from new array refs
+  const preselectedKey = preselectedAssetIds?.slice().sort().join(",") ?? "";
   useEffect(() => {
-    if (open && preselectedAssetIds && preselectedAssetIds.length > 0) {
-      setSelectedRefIds(new Set(preselectedAssetIds.slice(0, 3)));
+    if (!open) return;
+    const ids = preselectedKey ? preselectedKey.split(",") : [];
+    if (ids.length > 0) {
+      setSelectedRefIds(new Set(ids.slice(0, 3)));
+    } else {
+      setSelectedRefIds(new Set());
     }
-  }, [open]);
+  }, [open, preselectedKey]);
 
   const reset = () => {
     setSelectedRefIds(new Set());
