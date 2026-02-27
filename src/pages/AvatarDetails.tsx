@@ -320,26 +320,43 @@ export default function AvatarDetails() {
 /* ── Helpers ── */
 const SHOT_LABELS: Record<string, string> = {
   TH1_FRONT_NEUTRAL: "Frontal Neutro",
+  TH2_FRONT_GENTLE_SMILE: "Frontal Sorriso Leve",
+  TH3_FRONT_SPEAKING_FRAME: "Frontal Falando",
+  TH4_45_NEUTRAL: "45° Neutro",
+  TH5_45_GENTLE_SMILE: "45° Sorriso Leve",
+  TH6_PROFILE_90_NEUTRAL: "Perfil 90° Neutro",
+  FB1_FULL_FRONT: "Corpo Inteiro Frontal",
+  FB2_FULL_45: "Corpo Inteiro 45°",
+  FB3_FULL_PROFILE_90: "Corpo Inteiro Perfil 90°",
+  FB4_FULL_BACK_180: "Corpo Inteiro Costas",
+  FB5_HANDS_FOCUS: "Foco nas Mãos",
+  FB6_UPPER_GARMENT_DETAIL: "Detalhe Roupa Superior",
+  FB7_LOWER_GARMENT_DETAIL: "Detalhe Roupa Inferior",
+  FB8_LIFESTYLE_UGC: "Lifestyle UGC",
   TH2_FRONT_LEFT: "Frontal Esquerda",
   TH3_FRONT_RIGHT: "Frontal Direita",
   TH4_LEFT_PROFILE: "Perfil Esquerdo",
   TH5_RIGHT_PROFILE: "Perfil Direito",
   TH6_THREE_QUARTER_LEFT: "¾ Esquerda",
   TH7_THREE_QUARTER_RIGHT: "¾ Direita",
-  FB1_FULL_FRONT: "Corpo Frontal",
-  FB2_FULL_LEFT: "Corpo Esquerda",
-  FB3_FULL_RIGHT: "Corpo Direita",
-  FB4_FULL_BACK: "Corpo Costas",
-  FB5_THREE_QUARTER_FRONT_LEFT: "Corpo ¾ Esq.",
-  FB6_THREE_QUARTER_FRONT_RIGHT: "Corpo ¾ Dir.",
+  FB2_FULL_LEFT: "Corpo Inteiro Esquerda",
+  FB3_FULL_RIGHT: "Corpo Inteiro Direita",
+  FB4_FULL_BACK: "Corpo Inteiro Costas",
+  FB5_THREE_QUARTER_FRONT_LEFT: "Corpo ¾ Frontal Esq.",
+  FB6_THREE_QUARTER_FRONT_RIGHT: "Corpo ¾ Frontal Dir.",
   FB7_FULL_SITTING: "Corpo Sentado",
 };
 
 function getShotLabel(gen?: AvatarGeneration): string | null {
   if (!gen?.ai_parameters || typeof gen.ai_parameters !== "object") return null;
   const params = gen.ai_parameters as Record<string, unknown>;
-  if ("shot_label" in params) {
-    const raw = String(params.shot_label);
+  const debug = params._debug as Record<string, unknown> | null;
+  // New pipeline: human-readable label already in _debug.shotLabel
+  if (debug?.shotLabel && typeof debug.shotLabel === "string") return debug.shotLabel;
+  // Resolve from shotId or shot_label
+  const rawId = params.shotId ?? debug?.selectedShotId ?? params.shot_label;
+  if (rawId) {
+    const raw = String(rawId);
     return SHOT_LABELS[raw] ?? raw.replace(/_/g, " ");
   }
   return null;

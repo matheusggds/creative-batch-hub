@@ -46,14 +46,29 @@ interface ImageDetailModalProps {
 }
 
 const SHOT_LABELS: Record<string, string> = {
+  // Torso/Head shots (new pipeline)
   TH1_FRONT_NEUTRAL: "Frontal Neutro",
+  TH2_FRONT_GENTLE_SMILE: "Frontal Sorriso Leve",
+  TH3_FRONT_SPEAKING_FRAME: "Frontal Falando",
+  TH4_45_NEUTRAL: "45° Neutro",
+  TH5_45_GENTLE_SMILE: "45° Sorriso Leve",
+  TH6_PROFILE_90_NEUTRAL: "Perfil 90° Neutro",
+  // Full body shots (new pipeline)
+  FB1_FULL_FRONT: "Corpo Inteiro Frontal",
+  FB2_FULL_45: "Corpo Inteiro 45°",
+  FB3_FULL_PROFILE_90: "Corpo Inteiro Perfil 90°",
+  FB4_FULL_BACK_180: "Corpo Inteiro Costas",
+  FB5_HANDS_FOCUS: "Foco nas Mãos",
+  FB6_UPPER_GARMENT_DETAIL: "Detalhe Roupa Superior",
+  FB7_LOWER_GARMENT_DETAIL: "Detalhe Roupa Inferior",
+  FB8_LIFESTYLE_UGC: "Lifestyle UGC",
+  // Legacy shot IDs
   TH2_FRONT_LEFT: "Frontal Esquerda",
   TH3_FRONT_RIGHT: "Frontal Direita",
   TH4_LEFT_PROFILE: "Perfil Esquerdo",
   TH5_RIGHT_PROFILE: "Perfil Direito",
   TH6_THREE_QUARTER_LEFT: "¾ Esquerda",
   TH7_THREE_QUARTER_RIGHT: "¾ Direita",
-  FB1_FULL_FRONT: "Corpo Inteiro Frontal",
   FB2_FULL_LEFT: "Corpo Inteiro Esquerda",
   FB3_FULL_RIGHT: "Corpo Inteiro Direita",
   FB4_FULL_BACK: "Corpo Inteiro Costas",
@@ -85,11 +100,20 @@ function getAiParam(gen: AvatarGeneration | undefined, key: string): unknown {
 }
 
 function getRawShotLabel(gen?: AvatarGeneration): string | null {
+  // New pipeline stores shotId at top level + _debug.selectedShotId
+  const shotId = getAiParam(gen, "shotId");
+  if (shotId) return String(shotId);
+  const debug = getAiParam(gen, "_debug") as Record<string, unknown> | null;
+  if (debug?.selectedShotId) return String(debug.selectedShotId);
+  // Legacy pipeline
   const v = getAiParam(gen, "shot_label");
   return v ? String(v) : null;
 }
 
 function getHumanShotLabel(gen?: AvatarGeneration): string | null {
+  // New pipeline may already have a human-readable label in _debug.shotLabel
+  const debug = getAiParam(gen, "_debug") as Record<string, unknown> | null;
+  if (debug?.shotLabel && typeof debug.shotLabel === "string") return debug.shotLabel;
   const raw = getRawShotLabel(gen);
   if (!raw) return null;
   return SHOT_LABELS[raw] ?? raw.replace(/_/g, " ");
@@ -117,18 +141,38 @@ function getPipelineLabel(pt: string | null): string {
 
 function getModelUsed(gen?: AvatarGeneration): { prompt_model: string | null; image_model: string | null } {
   const debug = getAiParam(gen, "_debug") as Record<string, unknown> | null;
-  // Check if ai_parameters has explicit model info from the pipeline
-  const hasOpenaiResponse = !!getAiParam(gen, "openai_raw_response");
-  const promptModel = hasOpenaiResponse ? "GPT-4o" : (debug?.prompt_model ? String(debug.prompt_model) : null);
-  
-  // The image model is Gemini — check debug or infer from pipeline
-  const imageModel = debug?.image_model
+  // New pipeline: gemini_model_used at top level or _debug.lastModelUsed
+  const geminiModel = getAiParam(gen, "gemini_model_used");
+  const imageModel = geminiModel
+    ? String(geminiModel)
+    : debug?.lastModelUsed
+    ? String(debug.lastModelUsed)
+    : debug?.image_model
     ? String(debug.image_model)
-    : hasOpenaiResponse
-    ? "Gemini 2.0 Flash"
-    : (debug?.model ? String(debug.model) : null);
+    : null;
+  
+  // Prompt model: new pipeline uses GPT-4o via separate step, legacy has openai_raw_response
+  const hasOpenaiResponse = !!getAiParam(gen, "openai_raw_response");
+  const lastProvider = debug?.lastProvider ? String(debug.lastProvider) : null;
+  const promptModel = hasOpenaiResponse ? "GPT-4o" 
+    : (lastProvider === "google" ? null : (debug?.prompt_model ? String(debug.prompt_model) : null));
 
   return { prompt_model: promptModel, image_model: imageModel };
+}
+
+function getPromptText(gen?: AvatarGeneration): string | null {
+  const debug = getAiParam(gen, "_debug") as Record<string, unknown> | null;
+  // New pipeline: finalPromptPreview in _debug
+  if (debug?.finalPromptPreview && typeof debug.finalPromptPreview === "string") {
+    return debug.finalPromptPreview;
+  }
+  // Legacy pipeline: extracted_positive_prompt in ai_parameters
+  const aiParams = gen?.ai_parameters as Record<string, unknown> | null;
+  if (aiParams?.extracted_positive_prompt && typeof aiParams.extracted_positive_prompt === "string") {
+    return aiParams.extracted_positive_prompt;
+  }
+  // Fallback: extracted_prompt on generation row
+  return gen?.extracted_prompt || null;
 }
 
 function getRefCount(gen?: AvatarGeneration): number | null {
@@ -199,9 +243,7 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
     ? "Imagem Gerada"
     : "Referência";
 
-  // Get prompt from ai_parameters (extracted_positive_prompt is the clean version)
-  const aiParams = generation?.ai_parameters as Record<string, unknown> | null;
-  const promptText = (aiParams?.extracted_positive_prompt as string) || generation?.extracted_prompt || null;
+  const promptText = getPromptText(generation);
   const promptIsLong = promptText && promptText.length > 200;
 
   // Build generation summary sentence
