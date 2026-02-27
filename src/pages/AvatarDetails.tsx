@@ -11,12 +11,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
+import {
   ImageIcon,
   Images,
   Wand2,
   AlertTriangle,
   Check,
   ChevronDown,
+  X,
+  MousePointerClick,
 } from "lucide-react";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
@@ -33,7 +39,10 @@ export default function AvatarDetails() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [anglesOpen, setAnglesOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // Image preview state (normal mode)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewName, setPreviewName] = useState<string | null>(null);
 
   const openGenerateModal = () => setAnglesOpen(true);
 
@@ -46,31 +55,33 @@ export default function AvatarDetails() {
     });
   };
 
-  const handleCardSelect = (assetId: string) => {
-    if (!selectionMode) setSelectionMode(true);
-    toggleSelect(assetId);
-  };
-
   const clearSelection = () => {
     setSelectedIds(new Set());
     setSelectionMode(false);
   };
 
-  const toggleSelectionMode = () => {
-    if (selectionMode) {
-      clearSelection();
-      return;
-    }
+  const enterSelectionMode = () => {
     setSelectionMode(true);
   };
 
   const selectAll = () => {
     if (!avatar) return;
-    setSelectionMode(true);
     if (selectedIds.size === avatar.references.length) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(avatar.references.map((r) => r.asset_id)));
+    }
+  };
+
+  const handleCardClick = (ref: { asset_id: string; file_url: string | null; asset_name: string | null }) => {
+    if (selectionMode) {
+      toggleSelect(ref.asset_id);
+    } else {
+      // Normal mode: open image preview
+      if (ref.file_url) {
+        setPreviewUrl(ref.file_url);
+        setPreviewName(ref.asset_name ?? "Referência");
+      }
     }
   };
 
@@ -123,15 +134,10 @@ export default function AvatarDetails() {
       <main className="container py-8 space-y-6">
         {/* Hero: Cover + Info */}
         <div className="flex flex-col sm:flex-row gap-6">
-          {/* Cover */}
           <div className="w-full sm:w-48 md:w-56 shrink-0">
             <div className="aspect-square rounded-xl border border-border/50 overflow-hidden bg-muted">
               {avatar.cover_url ? (
-                <img
-                  src={avatar.cover_url}
-                  alt={avatar.name}
-                  className="h-full w-full object-cover"
-                />
+                <img src={avatar.cover_url} alt={avatar.name} className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <ImageIcon className="h-12 w-12 text-muted-foreground/30" />
@@ -140,7 +146,6 @@ export default function AvatarDetails() {
             </div>
           </div>
 
-          {/* Info + Primary CTA */}
           <div className="flex-1 flex flex-col justify-between min-w-0">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -149,22 +154,15 @@ export default function AvatarDetails() {
               </div>
               <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
                 <Images className="h-4 w-4" />
-                <span>
-                  {avatar.references.length} imagem{avatar.references.length !== 1 ? "ns" : ""}
-                </span>
+                <span>{avatar.references.length} imagem{avatar.references.length !== 1 ? "ns" : ""}</span>
               </div>
             </div>
 
-            {/* Primary CTA */}
+            {/* Primary CTA — standalone, no selection coupling */}
             <div className="flex flex-wrap gap-2 mt-4">
               <Button className="gap-2" onClick={openGenerateModal}>
                 <Wand2 className="h-4 w-4" />
                 Gerar Ângulos Base
-                {hasSelection && (
-                  <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
-                    {selectedIds.size} ref
-                  </Badge>
-                )}
               </Button>
             </div>
           </div>
@@ -173,37 +171,49 @@ export default function AvatarDetails() {
         {/* Gallery Header */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-lg font-semibold">Biblioteca do Avatar</h2>
-          <div className="flex items-center gap-2">
+          {avatar.references.length > 0 && (
             <Button
               variant={selectionMode ? "secondary" : "outline"}
               size="sm"
-              onClick={toggleSelectionMode}
+              className="gap-1.5"
+              onClick={selectionMode ? clearSelection : enterSelectionMode}
             >
-              {selectionMode ? "Modo seleção ativo" : "Ativar modo seleção"}
+              {selectionMode ? (
+                <>
+                  <X className="h-3.5 w-3.5" />
+                  Sair da seleção
+                </>
+              ) : (
+                <>
+                  <MousePointerClick className="h-3.5 w-3.5" />
+                  Selecionar imagens
+                </>
+              )}
             </Button>
-            {avatar.references.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={selectAll} className="gap-1.5 text-xs" disabled={!selectionMode}>
-                <Check className="h-3 w-3" />
-                {selectedIds.size === avatar.references.length ? "Desmarcar todas" : "Selecionar todas"}
-              </Button>
-            )}
-          </div>
+          )}
         </div>
 
+        {/* Selection Action Bar */}
         {selectionMode && (
-          <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 flex items-center justify-between gap-2 flex-wrap">
-            <span className="text-sm text-foreground">
-              {selectedIds.size} imagem{selectedIds.size !== 1 ? "ns" : ""} selecionada{selectedIds.size !== 1 ? "s" : ""}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={clearSelection} disabled={!hasSelection}>
-                Limpar seleção
+          <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium">
+                {selectedIds.size} selecionada{selectedIds.size !== 1 ? "s" : ""}
+              </span>
+              <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs h-7">
+                <Check className="h-3 w-3 mr-1" />
+                {selectedIds.size === avatar.references.length ? "Desmarcar todas" : "Selecionar todas"}
               </Button>
-              <Button size="sm" onClick={openGenerateModal} disabled={!hasSelection} className="gap-1.5">
-                <Wand2 className="h-3.5 w-3.5" />
-                Gerar da seleção
-              </Button>
+              {hasSelection && (
+                <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="text-xs h-7">
+                  Limpar
+                </Button>
+              )}
             </div>
+            <Button size="sm" onClick={openGenerateModal} disabled={!hasSelection} className="gap-1.5">
+              <Wand2 className="h-3.5 w-3.5" />
+              Gerar da seleção ({selectedIds.size})
+            </Button>
           </div>
         )}
 
@@ -226,11 +236,13 @@ export default function AvatarDetails() {
                 <div
                   key={ref.id}
                   className={`group relative aspect-square rounded-lg border overflow-hidden bg-muted transition-all ${
-                    isSelected
-                      ? "border-primary ring-2 ring-primary/30"
-                      : "border-border/50 hover:border-primary/40"
-                  } ${selectionMode ? "cursor-pointer" : "cursor-default"}`}
-                  onClick={() => handleCardSelect(ref.asset_id)}
+                    selectionMode
+                      ? isSelected
+                        ? "border-primary ring-2 ring-primary/30 cursor-pointer"
+                        : "border-border/50 hover:border-primary/40 cursor-pointer"
+                      : "border-border/50 hover:border-border cursor-pointer"
+                  }`}
+                  onClick={() => handleCardClick(ref)}
                 >
                   {ref.file_url ? (
                     <img
@@ -245,37 +257,53 @@ export default function AvatarDetails() {
                     </div>
                   )}
 
-                  {/* Checkbox overlay */}
-                  <div
-                    className={`absolute top-2 left-2 transition-opacity ${
-                      selectionMode ? (isSelected ? "opacity-100" : "opacity-60") : "opacity-0"
-                    }`}
-                  >
-                    <Checkbox
-                      checked={isSelected}
-                      className="h-5 w-5 rounded border-2 bg-background/80 backdrop-blur-sm"
-                      onClick={(e) => e.stopPropagation()}
-                      onCheckedChange={() => handleCardSelect(ref.asset_id)}
-                    />
-                  </div>
+                  {/* Checkbox — only in selection mode */}
+                  {selectionMode && (
+                    <div className={`absolute top-2 left-2 transition-opacity ${isSelected ? "opacity-100" : "opacity-60 group-hover:opacity-100"}`}>
+                      <Checkbox
+                        checked={isSelected}
+                        className="h-5 w-5 rounded border-2 bg-background/80 backdrop-blur-sm"
+                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={() => toggleSelect(ref.asset_id)}
+                      />
+                    </div>
+                  )}
+
+                  {/* Selection overlay */}
+                  {selectionMode && isSelected && (
+                    <div className="absolute inset-0 bg-primary/10 pointer-events-none" />
+                  )}
                 </div>
               );
             })}
           </div>
         )}
 
-        {/* Generation History (collapsible) */}
+        {/* Generation History (collapsible, compact) */}
         <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
           <CollapsibleTrigger asChild>
-            <button className="flex items-center gap-2 text-lg font-semibold hover:text-foreground/80 transition-colors w-full text-left">
-              <ChevronDown className={`h-4 w-4 transition-transform ${historyOpen ? "" : "-rotate-90"}`} />
+            <button className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1">
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${historyOpen ? "" : "-rotate-90"}`} />
               Histórico de Gerações
             </button>
           </CollapsibleTrigger>
-          <CollapsibleContent className="mt-3">
+          <CollapsibleContent className="mt-2">
             <GenerationHistorySection avatarProfileId={avatar.id} />
           </CollapsibleContent>
         </Collapsible>
+
+        {/* Image Preview Dialog (normal mode) */}
+        <Dialog open={!!previewUrl} onOpenChange={(v) => !v && setPreviewUrl(null)}>
+          <DialogContent className="max-w-2xl p-2 bg-background/95 backdrop-blur-sm">
+            {previewUrl && (
+              <img
+                src={previewUrl}
+                alt={previewName ?? "Imagem"}
+                className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Generate Base Angles Modal */}
         <GenerateBaseAnglesModal
@@ -283,7 +311,7 @@ export default function AvatarDetails() {
           onOpenChange={setAnglesOpen}
           avatarProfileId={avatar.id}
           references={avatar.references}
-          preselectedAssetIds={Array.from(selectedIds)}
+          preselectedAssetIds={selectionMode && hasSelection ? Array.from(selectedIds) : undefined}
         />
       </main>
     </div>

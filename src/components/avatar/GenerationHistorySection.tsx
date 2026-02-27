@@ -20,7 +20,6 @@ import {
   ImageIcon,
   Zap,
   Activity,
-  History,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -62,30 +61,25 @@ export function GenerationHistorySection({ avatarProfileId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="space-y-2">
-        <Skeleton className="h-5 w-40" />
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-12 w-full rounded-md" />
+      <div className="space-y-1">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full rounded-md" />
         ))}
       </div>
     );
   }
 
-  if (!generations || generations.length === 0) return null;
+  if (!generations || generations.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground py-2">Nenhuma geração registrada.</p>
+    );
+  }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <History className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-lg font-semibold">Histórico de Gerações</h2>
-        <span className="text-xs text-muted-foreground">({generations.length})</span>
-      </div>
-
-      <div className="space-y-1">
-        {generations.map((gen) => (
-          <GenerationRow key={gen.id} generation={gen} onClick={() => setSelectedId(gen.id)} />
-        ))}
-      </div>
+    <div className="space-y-1">
+      {generations.map((gen) => (
+        <GenerationRow key={gen.id} generation={gen} onClick={() => setSelectedId(gen.id)} />
+      ))}
 
       <GenerationDetailDialog
         generationId={selectedId}
@@ -108,46 +102,45 @@ function GenerationRow({ generation, onClick }: { generation: AvatarGeneration; 
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-3 w-full rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-left hover:border-primary/40 transition-colors"
+      className="flex items-center gap-2 w-full rounded-md border border-border/30 bg-muted/20 px-2.5 py-1.5 text-left hover:border-border/60 transition-colors"
     >
-      <div className="h-10 w-10 shrink-0 rounded overflow-hidden bg-muted border border-border/30">
+      {/* Thumbnail */}
+      <div className="h-8 w-8 shrink-0 rounded overflow-hidden bg-muted border border-border/20">
         {generation.result_url ? (
-          <img src={generation.result_url} alt="Resultado" className="h-full w-full object-cover" loading="lazy" />
+          <img src={generation.result_url} alt="" className="h-full w-full object-cover" loading="lazy" />
         ) : isActive ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-4 w-4 text-primary animate-spin" />
+            <Loader2 className="h-3 w-3 text-primary animate-spin" />
           </div>
         ) : (
           <div className="flex items-center justify-center h-full">
-            <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
+            <ImageIcon className="h-3 w-3 text-muted-foreground/40" />
           </div>
         )}
       </div>
 
+      {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <Badge variant={style.variant} className="gap-1 text-[10px] px-1.5 py-0 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <Badge variant={style.variant} className="gap-0.5 text-[10px] px-1 py-0 shrink-0">
             {style.icon}
             {style.label}
           </Badge>
           {shotLabel && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
-              {shotLabel}
-            </Badge>
-          )}
-          {isActive && generation.current_step && (
-            <span className="text-[10px] text-muted-foreground truncate">{generation.current_step}</span>
+            <span className="text-[10px] text-muted-foreground truncate">{shotLabel}</span>
           )}
         </div>
-        {isActive && <Progress value={generation.progress_pct} className="h-1 mt-1.5" />}
+        {isActive && <Progress value={generation.progress_pct} className="h-0.5 mt-1" />}
       </div>
 
-      <span className="text-[10px] text-muted-foreground shrink-0">
+      {/* Time */}
+      <span className="text-[10px] text-muted-foreground/60 shrink-0">
         {formatDistanceToNow(new Date(generation.created_at), { addSuffix: true, locale: ptBR })}
       </span>
     </button>
   );
 }
+
 /* ---------- Detail Dialog ---------- */
 
 function GenerationDetailDialog({
@@ -200,7 +193,6 @@ function DetailContent({ data }: { data: import("@/hooks/useGenerationStatus").G
 
   return (
     <div className="space-y-4">
-      {/* Status row */}
       <div className="flex items-center justify-between">
         <Badge variant={style.variant} className="gap-1">
           {style.icon}
@@ -211,7 +203,6 @@ function DetailContent({ data }: { data: import("@/hooks/useGenerationStatus").G
         </span>
       </div>
 
-      {/* Debug info panel */}
       {(shotLabel || debug) && (
         <details className="rounded-md border border-border/40 bg-muted/20">
           <summary className="px-3 py-2 text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
@@ -233,42 +224,32 @@ function DetailContent({ data }: { data: import("@/hooks/useGenerationStatus").G
             )}
             {selectedRefAssetIds && (
               <div className="flex gap-2">
-                <span className="text-muted-foreground">Refs selecionadas:</span>
+                <span className="text-muted-foreground">Refs:</span>
                 <span className="font-mono text-[10px]">{selectedRefAssetIds.length}x — {selectedRefAssetIds.map(id => id.slice(0,8)).join(", ")}</span>
               </div>
             )}
             <div className="flex gap-2">
-              <span className="text-muted-foreground">ref_asset_id (backend):</span>
+              <span className="text-muted-foreground">ref_asset_id:</span>
               <span className="font-mono text-[10px]">{generation.reference_asset_id?.slice(0,8) ?? "—"}</span>
-              {selectedRefAssetIds?.[0] && generation.reference_asset_id !== selectedRefAssetIds[0] && (
-                <Badge variant="destructive" className="text-[10px] px-1 py-0">MISMATCH</Badge>
-              )}
             </div>
             {geminiModel && (
               <div className="flex gap-2">
-                <span className="text-muted-foreground">Modelo Gemini:</span>
+                <span className="text-muted-foreground">Modelo:</span>
                 <span className="font-mono">{geminiModel}</span>
               </div>
             )}
             {extractedPrompt && (
               <div className="space-y-1">
-                <span className="text-muted-foreground">Prompt extraído:</span>
+                <span className="text-muted-foreground">Prompt:</span>
                 <pre className="whitespace-pre-wrap font-mono text-[10px] bg-muted/50 rounded p-2 max-h-[120px] overflow-y-auto border border-border/30">
                   {extractedPrompt}
                 </pre>
-              </div>
-            )}
-            {debug?.submittedAt && (
-              <div className="flex gap-2">
-                <span className="text-muted-foreground">Submetido em:</span>
-                <span className="font-mono text-[10px]">{debug.submittedAt as string}</span>
               </div>
             )}
           </div>
         </details>
       )}
 
-      {/* Progress */}
       {!isTerminal && (
         <div className="space-y-1">
           <div className="flex justify-between text-xs text-muted-foreground">
@@ -279,23 +260,16 @@ function DetailContent({ data }: { data: import("@/hooks/useGenerationStatus").G
         </div>
       )}
 
-      {/* Error */}
       {generation.status === "failed" && generation.error_code && (
         <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2">
           <span className="font-mono text-xs text-destructive">{generation.error_code}</span>
         </div>
       )}
 
-      {/* Result */}
       {generation.result_url && (
-        <img
-          src={generation.result_url}
-          alt="Resultado"
-          className="w-full rounded-lg border border-border/50"
-        />
+        <img src={generation.result_url} alt="Resultado" className="w-full rounded-lg border border-border/50" />
       )}
 
-      {/* Jobs */}
       {jobs.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -306,10 +280,7 @@ function DetailContent({ data }: { data: import("@/hooks/useGenerationStatus").G
             {jobs.map((job) => {
               const js = getStyle(job.status);
               return (
-                <div
-                  key={job.id}
-                  className="flex items-center justify-between rounded-md border border-border/30 bg-muted/30 px-3 py-2 text-xs"
-                >
+                <div key={job.id} className="flex items-center justify-between rounded-md border border-border/30 bg-muted/30 px-3 py-2 text-xs">
                   <div className="flex items-center gap-2 min-w-0">
                     {js.icon}
                     <span className="font-medium truncate">{job.step}</span>
@@ -319,9 +290,7 @@ function DetailContent({ data }: { data: import("@/hooks/useGenerationStatus").G
                       </Badge>
                     )}
                   </div>
-                  <Badge variant={js.variant} className="text-[10px] px-1.5 py-0 shrink-0">
-                    {js.label}
-                  </Badge>
+                  <Badge variant={js.variant} className="text-[10px] px-1.5 py-0 shrink-0">{js.label}</Badge>
                 </div>
               );
             })}
@@ -329,7 +298,6 @@ function DetailContent({ data }: { data: import("@/hooks/useGenerationStatus").G
         </div>
       )}
 
-      {/* Events */}
       {events.length > 0 && (
         <div className="space-y-2">
           <Separator />
@@ -340,22 +308,15 @@ function DetailContent({ data }: { data: import("@/hooks/useGenerationStatus").G
           <ScrollArea className="max-h-[180px]">
             <div className="space-y-1">
               {events.map((evt) => (
-                <div
-                  key={evt.id}
-                  className="flex items-start gap-2 text-xs py-1.5 border-l-2 border-border pl-3 ml-1"
-                >
+                <div key={evt.id} className="flex items-start gap-2 text-xs py-1.5 border-l-2 border-border pl-3 ml-1">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
-                        {evt.type}
-                      </Badge>
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">{evt.type}</Badge>
                       <span className="text-muted-foreground">
                         {formatDistanceToNow(new Date(evt.created_at), { addSuffix: true, locale: ptBR })}
                       </span>
                     </div>
-                    {evt.message && (
-                      <p className="text-muted-foreground mt-0.5 break-words">{evt.message}</p>
-                    )}
+                    {evt.message && <p className="text-muted-foreground mt-0.5 break-words">{evt.message}</p>}
                   </div>
                 </div>
               ))}
@@ -364,7 +325,6 @@ function DetailContent({ data }: { data: import("@/hooks/useGenerationStatus").G
         </div>
       )}
 
-      {/* Polling indicator */}
       {!isTerminal && (
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
           <Loader2 className="h-3 w-3 animate-spin" />
