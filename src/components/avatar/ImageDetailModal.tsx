@@ -25,6 +25,9 @@ import {
   Tag,
   FileText,
   Images,
+  Cpu,
+  Layers,
+  ClipboardCopy,
 } from "lucide-react";
 import { AvatarGeneration } from "@/hooks/useAvatarGenerations";
 import { AvatarReferenceAsset } from "@/hooks/useAvatarProfile";
@@ -76,11 +79,14 @@ function formatTs(ts: string | null) {
   }
 }
 
-function getRawShotLabel(gen?: AvatarGeneration): string | null {
+function getAiParam(gen: AvatarGeneration | undefined, key: string): unknown {
   if (!gen?.ai_parameters || typeof gen.ai_parameters !== "object") return null;
-  const params = gen.ai_parameters as Record<string, unknown>;
-  if ("shot_label" in params) return String(params.shot_label);
-  return null;
+  return (gen.ai_parameters as Record<string, unknown>)[key] ?? null;
+}
+
+function getRawShotLabel(gen?: AvatarGeneration): string | null {
+  const v = getAiParam(gen, "shot_label");
+  return v ? String(v) : null;
 }
 
 function getHumanShotLabel(gen?: AvatarGeneration): string | null {
@@ -92,17 +98,56 @@ function getHumanShotLabel(gen?: AvatarGeneration): string | null {
 function getSourceModeLabel(mode: string | null): string | null {
   if (!mode) return null;
   const map: Record<string, string> = {
-    text_to_image: "Texto para Imagem",
-    image_to_image: "Imagem para Imagem",
+    text_to_image: "Texto → Imagem",
+    image_to_image: "Imagem → Imagem",
     reference_based: "Baseado em Referência",
   };
   return map[mode] ?? mode.replace(/_/g, " ");
 }
 
+function getPipelineLabel(pt: string | null): string {
+  if (!pt) return "—";
+  const map: Record<string, string> = {
+    text_to_image: "Texto → Imagem",
+    image_to_image: "Imagem → Imagem",
+    avatar_base_angles: "Ângulos Base do Avatar",
+  };
+  return map[pt] ?? pt.replace(/_/g, " ");
+}
+
+function getModelUsed(gen?: AvatarGeneration): string | null {
+  const debug = getAiParam(gen, "_debug") as Record<string, unknown> | null;
+  if (debug?.model) return String(debug.model);
+  const model = getAiParam(gen, "model");
+  if (model) return String(model);
+  return gen?.tool_type ?? null;
+}
+
+function getRefCount(gen?: AvatarGeneration): number | null {
+  const debug = getAiParam(gen, "_debug") as Record<string, unknown> | null;
+  if (debug?.referenceCount) return Number(debug.referenceCount);
+  const refs = getAiParam(gen, "reference_asset_ids");
+  if (Array.isArray(refs)) return refs.length;
+  return null;
+}
+
+/* ── Metadata Row ── */
+function MetaRow({ icon: Icon, label, children }: { icon: React.ElementType; label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2.5 text-xs">
+      <Icon className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+      <div className="min-w-0">
+        <span className="text-muted-foreground">{label}</span>
+        <div className="text-foreground mt-0.5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalProps) {
   const [debugOpen, setDebugOpen] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const generation = item
     ? item.type === "generation"
@@ -125,15 +170,17 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
 
   const shotLabel = getHumanShotLabel(generation);
   const rawShotLabel = getRawShotLabel(generation);
+  const modelUsed = getModelUsed(generation);
+  const refCount = getRefCount(generation) ?? refAssets?.length ?? null;
 
   const badge = generation
     ? statusConfig[generation.status] ?? { label: generation.status, variant: "outline" as const }
     : null;
 
-  const copyId = (id: string) => {
-    navigator.clipboard.writeText(id);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 1500);
   };
 
   const title = shotLabel
@@ -147,12 +194,25 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
   const promptText = generation?.extracted_prompt;
   const promptIsLong = promptText && promptText.length > 200;
 
+  // Build generation summary sentence
+  const summaryParts: string[] = [];
+  if (generation) {
+    if (shotLabel) summaryParts.push(`Enquadramento: ${shotLabel}`);
+    if (generation.source_mode) {
+      summaryParts.push(`Modo: ${getSourceModeLabel(generation.source_mode)}`);
+    }
+    if (refCount && refCount > 0) {
+      summaryParts.push(`${refCount} referência${refCount > 1 ? "s" : ""} usada${refCount > 1 ? "s" : ""}`);
+    }
+    if (modelUsed) summaryParts.push(`Modelo: ${modelUsed}`);
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto gap-0 p-0">
+      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto gap-0 p-0">
         <div className="flex flex-col md:flex-row">
           {/* Left: Image preview */}
-          <div className="md:w-1/2 w-full shrink-0 bg-muted flex items-center justify-center min-h-[280px] md:min-h-[420px] relative">
+          <div className="md:w-[55%] w-full shrink-0 bg-muted flex items-center justify-center min-h-[300px] md:min-h-[520px] relative">
             {isActive ? (
               <div className="flex flex-col items-center gap-3 text-muted-foreground p-6">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -185,9 +245,9 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
           </div>
 
           {/* Right: Info panel */}
-          <div className="md:w-1/2 w-full flex flex-col p-5 gap-4 overflow-y-auto max-h-[70vh] md:max-h-[90vh]">
+          <div className="md:w-[45%] w-full flex flex-col p-5 gap-0 overflow-y-auto max-h-[70vh] md:max-h-[92vh]">
             {/* Header */}
-            <DialogHeader className="space-y-1.5">
+            <DialogHeader className="space-y-1 pb-3">
               <DialogTitle className="text-base font-semibold leading-snug">
                 {title}
               </DialogTitle>
@@ -200,97 +260,164 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
                   <Camera className="h-3 w-3 shrink-0" />
                 )}
                 {isOriginalRef
-                  ? "Carregada manualmente"
+                  ? "Carregada manualmente como referência do avatar"
                   : generation
-                  ? "Gerada por IA"
+                  ? "Gerada automaticamente por IA"
                   : "Referência do avatar"}
               </DialogDescription>
             </DialogHeader>
 
+            {/* Generation Summary */}
+            {generation && summaryParts.length > 0 && (
+              <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5 mb-3">
+                <p className="text-[11px] font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                  <Layers className="h-3 w-3" />
+                  Resumo da geração
+                </p>
+                <p className="text-xs text-foreground leading-relaxed">
+                  {summaryParts.join(" · ")}
+                </p>
+              </div>
+            )}
+
             {/* Primary metadata */}
             {generation && (
-              <div className="space-y-2.5">
-                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
-                  <span className="text-muted-foreground">Status</span>
-                  <span>
-                    {badge && (
-                      <Badge variant={badge.variant} className="text-[10px]">
-                        {badge.label}
-                      </Badge>
-                    )}
-                  </span>
+              <div className="space-y-3 pb-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {badge && (
+                    <Badge variant={badge.variant} className="text-[10px]">
+                      {badge.label}
+                    </Badge>
+                  )}
+                  {isOriginalRef ? (
+                    <Badge variant="outline" className="text-[10px]">Original</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px]">Gerada</Badge>
+                  )}
+                </div>
 
-                  <span className="text-muted-foreground">Criada em</span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3 text-muted-foreground" />
-                    {formatTs(generation.created_at)}
-                  </span>
-
+                <div className="space-y-2.5">
                   {shotLabel && (
-                    <>
-                      <span className="text-muted-foreground">Enquadramento</span>
-                      <span className="flex items-center gap-1">
-                        <Camera className="h-3 w-3 text-muted-foreground" />
-                        {shotLabel}
-                      </span>
-                    </>
+                    <MetaRow icon={Camera} label="Enquadramento">
+                      {shotLabel}
+                    </MetaRow>
                   )}
 
-                  <span className="text-muted-foreground">Tipo</span>
-                  <span>{isOriginalRef ? "Original" : "Gerada"}</span>
+                  <MetaRow icon={Clock} label="Criada em">
+                    {formatTs(generation.created_at)}
+                  </MetaRow>
+
+                  {modelUsed && (
+                    <MetaRow icon={Cpu} label="Modelo">
+                      <span className="font-mono text-[11px]">{modelUsed}</span>
+                    </MetaRow>
+                  )}
 
                   {generation.source_mode && (
-                    <>
-                      <span className="text-muted-foreground">Modo</span>
-                      <span>{getSourceModeLabel(generation.source_mode)}</span>
-                    </>
+                    <MetaRow icon={Layers} label="Tipo de geração">
+                      {getSourceModeLabel(generation.source_mode)}
+                    </MetaRow>
                   )}
                 </div>
               </div>
             )}
 
             {!generation && isOriginalRef && (
-              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
-                <span className="text-muted-foreground">Tipo</span>
-                <span className="flex items-center gap-1">
-                  <Tag className="h-3 w-3 text-muted-foreground" />
+              <div className="space-y-2.5 pb-3">
+                <MetaRow icon={Tag} label="Tipo">
                   Referência Original
-                </span>
+                </MetaRow>
               </div>
+            )}
+
+            {/* Prompt section */}
+            {promptText && (
+              <>
+                <Separator className="my-1" />
+                <div className="py-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+                      <FileText className="h-3 w-3" />
+                      Prompt utilizado
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1 text-muted-foreground hover:text-foreground"
+                      onClick={() => copyToClipboard(promptText, "prompt")}
+                    >
+                      {copiedField === "prompt" ? (
+                        <CheckCircle2 className="h-3 w-3 text-primary" />
+                      ) : (
+                        <ClipboardCopy className="h-3 w-3" />
+                      )}
+                      {copiedField === "prompt" ? "Copiado" : "Copiar"}
+                    </Button>
+                  </div>
+                  <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
+                    <p
+                      className={`text-xs leading-relaxed text-foreground/80 whitespace-pre-wrap ${
+                        !promptExpanded && promptIsLong ? "line-clamp-5" : ""
+                      }`}
+                    >
+                      {promptText}
+                    </p>
+                  </div>
+                  {promptIsLong && (
+                    <button
+                      onClick={() => setPromptExpanded(!promptExpanded)}
+                      className="text-[11px] text-primary hover:underline"
+                    >
+                      {promptExpanded ? "Ver menos" : "Ver prompt completo"}
+                    </button>
+                  )}
+                </div>
+              </>
             )}
 
             {/* Reference images used */}
             {generation && (
               <>
-                <Separator />
-                <div className="space-y-2">
+                <Separator className="my-1" />
+                <div className="py-3 space-y-2">
                   <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
                     <Images className="h-3 w-3" />
                     Referências usadas
+                    {refAssets && refAssets.length > 0 && (
+                      <span className="text-[10px] text-muted-foreground/70 ml-1">
+                        ({refAssets.length})
+                      </span>
+                    )}
                   </p>
                   {refAssetsLoading ? (
                     <div className="flex gap-2">
                       {[1, 2, 3].map((i) => (
-                        <Skeleton key={i} className="h-14 w-14 rounded-md" />
+                        <Skeleton key={i} className="h-16 w-16 rounded-md" />
                       ))}
                     </div>
                   ) : refAssets && refAssets.length > 0 ? (
                     <div className="flex gap-2 flex-wrap">
-                      {refAssets.map((ra) => (
+                      {refAssets.map((ra, idx) => (
                         <div
                           key={ra.id}
-                          className="h-14 w-14 rounded-md border border-border/50 overflow-hidden bg-muted shrink-0"
+                          className="relative group/ref h-16 w-16 rounded-md border border-border/50 overflow-hidden bg-muted shrink-0"
+                          title={ra.asset_name ?? `Referência ${idx + 1}`}
                         >
                           {ra.file_url ? (
                             <img
                               src={ra.file_url}
-                              alt={ra.asset_name ?? "Referência"}
+                              alt={ra.asset_name ?? `Referência ${idx + 1}`}
                               className="h-full w-full object-cover"
                               loading="lazy"
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center">
                               <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
+                            </div>
+                          )}
+                          {idx === 0 && refAssets.length > 1 && (
+                            <div className="absolute bottom-0 inset-x-0 bg-black/60 text-center">
+                              <span className="text-[8px] text-white font-medium">Principal</span>
                             </div>
                           )}
                         </div>
@@ -305,41 +432,13 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
               </>
             )}
 
-            {/* Prompt section */}
-            {promptText && (
-              <>
-                <Separator />
-                <div className="space-y-1.5">
-                  <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-                    <FileText className="h-3 w-3" />
-                    Prompt da geração
-                  </p>
-                  <p
-                    className={`text-xs leading-relaxed text-foreground/80 whitespace-pre-wrap ${
-                      !promptExpanded && promptIsLong ? "line-clamp-4" : ""
-                    }`}
-                  >
-                    {promptText}
-                  </p>
-                  {promptIsLong && (
-                    <button
-                      onClick={() => setPromptExpanded(!promptExpanded)}
-                      className="text-[11px] text-primary hover:underline"
-                    >
-                      {promptExpanded ? "Ver menos" : "Ver prompt completo"}
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-
             {/* Technical details — collapsible */}
             {generation && (
               <>
-                <Separator />
-                <Collapsible open={debugOpen} onOpenChange={setDebugOpen}>
+                <Separator className="my-1" />
+                <Collapsible open={debugOpen} onOpenChange={setDebugOpen} className="py-2">
                   <CollapsibleTrigger asChild>
-                    <button className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+                    <button className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-full">
                       <ChevronDown
                         className={`h-3 w-3 transition-transform ${debugOpen ? "" : "-rotate-90"}`}
                       />
@@ -347,31 +446,44 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
                     </button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-2 space-y-2 text-xs text-muted-foreground">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border border-border bg-muted/30 p-3">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border border-border bg-muted/30 p-3">
                       <span className="font-medium">Pipeline</span>
-                      <span className="capitalize">
-                        {generation.pipeline_type?.replace(/_/g, " ") ?? "—"}
-                      </span>
+                      <span>{getPipelineLabel(generation.pipeline_type)}</span>
+
+                      <span className="font-medium">Source Mode</span>
+                      <span>{generation.source_mode ?? "—"}</span>
+
                       <span className="font-medium">Início</span>
                       <span>{formatTs(generation.started_at)}</span>
+
                       <span className="font-medium">Fim</span>
                       <span>{formatTs(generation.finished_at)}</span>
+
                       {generation.tool_type && (
                         <>
                           <span className="font-medium">Ferramenta</span>
                           <span>{generation.tool_type}</span>
                         </>
                       )}
+
                       {generation.error_code && (
                         <>
                           <span className="font-medium">Erro</span>
                           <span className="text-destructive">{generation.error_code}</span>
                         </>
                       )}
+
                       {rawShotLabel && (
                         <>
                           <span className="font-medium">Shot ID</span>
                           <span className="font-mono text-[10px]">{rawShotLabel}</span>
+                        </>
+                      )}
+
+                      {generation.result_asset_id && (
+                        <>
+                          <span className="font-medium">Result Asset</span>
+                          <span className="font-mono text-[10px]">{generation.result_asset_id.slice(0, 12)}…</span>
                         </>
                       )}
                     </div>
@@ -383,9 +495,9 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
                         variant="ghost"
                         size="sm"
                         className="h-5 px-1.5"
-                        onClick={() => copyId(generation.id)}
+                        onClick={() => copyToClipboard(generation.id, "id")}
                       >
-                        {copied ? (
+                        {copiedField === "id" ? (
                           <CheckCircle2 className="h-3 w-3 text-primary" />
                         ) : (
                           <Copy className="h-3 w-3" />
@@ -398,7 +510,7 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
             )}
 
             {/* Actions */}
-            <div className="flex justify-end pt-1 mt-auto">
+            <div className="flex justify-end pt-2 mt-auto">
               <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
                 Fechar
               </Button>
