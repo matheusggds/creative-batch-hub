@@ -3,7 +3,7 @@ import { GenerateBaseAnglesModal } from "@/components/avatar/GenerateBaseAnglesM
 import { ImageDetailModal, GridItem } from "@/components/avatar/ImageDetailModal";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvatarProfile } from "@/hooks/useAvatarProfile";
-import { useAvatarGenerations } from "@/hooks/useAvatarGenerations";
+import { useAvatarGenerations, AvatarGeneration } from "@/hooks/useAvatarGenerations";
 
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -317,6 +317,14 @@ export default function AvatarDetails() {
   );
 }
 
+/* ── Helpers ── */
+function getShotLabel(gen?: AvatarGeneration): string | null {
+  if (!gen?.ai_parameters || typeof gen.ai_parameters !== "object") return null;
+  const params = gen.ai_parameters as Record<string, unknown>;
+  if ("shot_label" in params) return String(params.shot_label);
+  return null;
+}
+
 /* ── Reference Card ── */
 function ReferenceCard({
   item,
@@ -332,6 +340,9 @@ function ReferenceCard({
   onClick: () => void;
 }) {
   const ref = item.ref;
+  const isOriginal = !item.generation;
+  const shotLabel = getShotLabel(item.generation);
+
   return (
     <div
       className={`group relative aspect-square rounded-lg border overflow-hidden bg-muted transition-all cursor-pointer ${
@@ -346,13 +357,38 @@ function ReferenceCard({
       {ref.file_url ? (
         <img
           src={ref.file_url}
-          alt={ref.asset_name ?? "Referência"}
+          alt={shotLabel ?? "Referência"}
           className="h-full w-full object-cover"
           loading="lazy"
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center">
           <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+        </div>
+      )}
+
+      {/* Bottom label overlay */}
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-2 pb-1.5 pt-6 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="text-[10px] font-medium text-white leading-tight line-clamp-1">
+          {shotLabel ?? (isOriginal ? "Referência Original" : "Imagem Gerada")}
+        </span>
+      </div>
+
+      {/* Always-visible shot badge for generated images */}
+      {shotLabel && !selectionMode && (
+        <div className="absolute top-1.5 right-1.5">
+          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-background/80 backdrop-blur-sm border-border/50 text-foreground">
+            {shotLabel}
+          </Badge>
+        </div>
+      )}
+
+      {/* Original indicator */}
+      {isOriginal && !selectionMode && (
+        <div className="absolute top-1.5 right-1.5">
+          <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-background/80 backdrop-blur-sm border-border/50 text-muted-foreground">
+            Original
+          </Badge>
         </div>
       )}
 
@@ -386,13 +422,7 @@ function GenerationCard({
   const isActive = ["pending", "queued", "processing"].includes(gen.status);
   const isFailed = gen.status === "failed";
   const isCompleted = gen.status === "completed";
-
-  const shotLabel =
-    gen.ai_parameters &&
-    typeof gen.ai_parameters === "object" &&
-    "shot_label" in gen.ai_parameters
-      ? String((gen.ai_parameters as Record<string, unknown>).shot_label)
-      : null;
+  const shotLabel = getShotLabel(gen);
 
   return (
     <div
@@ -415,7 +445,7 @@ function GenerationCard({
             <Progress value={gen.progress_pct} className="w-3/4 h-1.5" />
           )}
           {shotLabel && (
-            <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
               {shotLabel}
             </Badge>
           )}
@@ -425,18 +455,32 @@ function GenerationCard({
           <AlertTriangle className="h-6 w-6 text-destructive" />
           <span className="text-[10px] text-destructive text-center leading-tight">Falhou</span>
           {shotLabel && (
-            <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
               {shotLabel}
             </Badge>
           )}
         </div>
       ) : isCompleted && gen.result_url ? (
-        <img
-          src={gen.result_url}
-          alt={shotLabel ?? "Resultado"}
-          className="h-full w-full object-cover"
-          loading="lazy"
-        />
+        <>
+          <img
+            src={gen.result_url}
+            alt={shotLabel ?? "Resultado"}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+          {shotLabel && (
+            <div className="absolute top-1.5 right-1.5">
+              <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-background/80 backdrop-blur-sm border-border/50 text-foreground">
+                {shotLabel}
+              </Badge>
+            </div>
+          )}
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-2 pb-1.5 pt-6 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-[10px] font-medium text-white leading-tight line-clamp-1">
+              {shotLabel ?? "Imagem Gerada"}
+            </span>
+          </div>
+        </>
       ) : (
         <div className="flex h-full w-full items-center justify-center">
           <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
