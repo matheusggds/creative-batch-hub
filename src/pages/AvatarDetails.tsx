@@ -3,7 +3,7 @@ import { GenerateBaseAnglesModal } from "@/components/avatar/GenerateBaseAnglesM
 import { GenerationHistorySection } from "@/components/avatar/GenerationHistorySection";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvatarProfile } from "@/hooks/useAvatarProfile";
-import { useAuth } from "@/hooks/useAuth";
+
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,11 +28,14 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 export default function AvatarDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  
   const { data: avatar, isLoading, error } = useAvatarProfile(id);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
   const [anglesOpen, setAnglesOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(true);
+
+  const openGenerateModal = () => setAnglesOpen(true);
 
   const toggleSelect = (assetId: string) => {
     setSelectedIds((prev) => {
@@ -43,8 +46,27 @@ export default function AvatarDetails() {
     });
   };
 
+  const handleCardSelect = (assetId: string) => {
+    if (!selectionMode) setSelectionMode(true);
+    toggleSelect(assetId);
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+  };
+
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      clearSelection();
+      return;
+    }
+    setSelectionMode(true);
+  };
+
   const selectAll = () => {
     if (!avatar) return;
+    setSelectionMode(true);
     if (selectedIds.size === avatar.references.length) {
       setSelectedIds(new Set());
     } else {
@@ -135,7 +157,7 @@ export default function AvatarDetails() {
 
             {/* Primary CTA */}
             <div className="flex flex-wrap gap-2 mt-4">
-              <Button className="gap-2" onClick={() => setAnglesOpen(true)}>
+              <Button className="gap-2" onClick={openGenerateModal}>
                 <Wand2 className="h-4 w-4" />
                 Gerar Ângulos Base
                 {hasSelection && (
@@ -149,22 +171,41 @@ export default function AvatarDetails() {
         </div>
 
         {/* Gallery Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-lg font-semibold">Biblioteca do Avatar</h2>
           <div className="flex items-center gap-2">
-            {hasSelection && (
-              <span className="text-xs text-muted-foreground">
-                {selectedIds.size} selecionada{selectedIds.size !== 1 ? "s" : ""}
-              </span>
-            )}
+            <Button
+              variant={selectionMode ? "secondary" : "outline"}
+              size="sm"
+              onClick={toggleSelectionMode}
+            >
+              {selectionMode ? "Modo seleção ativo" : "Ativar modo seleção"}
+            </Button>
             {avatar.references.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={selectAll} className="gap-1.5 text-xs">
+              <Button variant="ghost" size="sm" onClick={selectAll} className="gap-1.5 text-xs" disabled={!selectionMode}>
                 <Check className="h-3 w-3" />
                 {selectedIds.size === avatar.references.length ? "Desmarcar todas" : "Selecionar todas"}
               </Button>
             )}
           </div>
         </div>
+
+        {selectionMode && (
+          <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-sm text-foreground">
+              {selectedIds.size} imagem{selectedIds.size !== 1 ? "ns" : ""} selecionada{selectedIds.size !== 1 ? "s" : ""}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={clearSelection} disabled={!hasSelection}>
+                Limpar seleção
+              </Button>
+              <Button size="sm" onClick={openGenerateModal} disabled={!hasSelection} className="gap-1.5">
+                <Wand2 className="h-3.5 w-3.5" />
+                Gerar da seleção
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Gallery Grid */}
         {avatar.references.length === 0 ? (
@@ -184,12 +225,12 @@ export default function AvatarDetails() {
               return (
                 <div
                   key={ref.id}
-                  className={`group relative aspect-square rounded-lg border overflow-hidden bg-muted cursor-pointer transition-all ${
+                  className={`group relative aspect-square rounded-lg border overflow-hidden bg-muted transition-all ${
                     isSelected
                       ? "border-primary ring-2 ring-primary/30"
                       : "border-border/50 hover:border-primary/40"
-                  }`}
-                  onClick={() => toggleSelect(ref.asset_id)}
+                  } ${selectionMode ? "cursor-pointer" : "cursor-default"}`}
+                  onClick={() => handleCardSelect(ref.asset_id)}
                 >
                   {ref.file_url ? (
                     <img
@@ -207,14 +248,14 @@ export default function AvatarDetails() {
                   {/* Checkbox overlay */}
                   <div
                     className={`absolute top-2 left-2 transition-opacity ${
-                      isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                      selectionMode ? (isSelected ? "opacity-100" : "opacity-60") : "opacity-0"
                     }`}
                   >
                     <Checkbox
                       checked={isSelected}
                       className="h-5 w-5 rounded border-2 bg-background/80 backdrop-blur-sm"
                       onClick={(e) => e.stopPropagation()}
-                      onCheckedChange={() => toggleSelect(ref.asset_id)}
+                      onCheckedChange={() => handleCardSelect(ref.asset_id)}
                     />
                   </div>
                 </div>
