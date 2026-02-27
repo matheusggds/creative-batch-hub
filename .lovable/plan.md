@@ -1,39 +1,39 @@
 
 
-## Fix: Add missing `avatarProfileId` to `create-generation` payload
+## Plan: Make Avatar Library the main page + add navigation menu
 
-### Root Cause
+### Changes
 
-`GenerateBaseAnglesModal.tsx` receives `avatarProfileId` as a prop and writes it to the `generations` DB row (line 126), but the `create-generation` invoke body (lines 178-191) omits it. The edge function requires `avatarProfileId` when `sourceMode === "avatar_workspace"`.
+#### 1. Update routing in `App.tsx`
+- Change `/` (authenticated) to redirect to `/avatars` instead of `/studio`
+- Remove `/studio` route (or redirect it to `/avatars`)
+- Make `/avatars` the default authenticated landing page
 
-### Fix (1 line addition)
+#### 2. Add a shared navigation header/menu
+Create a reusable `AppHeader` component with navigation links:
+- **Avatares** → `/avatars`
+- **Quick Flow** → `/quick`
+- Include user email + sign out button
 
-**File**: `src/components/avatar/GenerateBaseAnglesModal.tsx`, line ~182
+#### 3. Update page headers
+- **AvatarLibrary.tsx**: Remove the back arrow to `/studio`, use the new `AppHeader`
+- **AvatarDetails.tsx**: Back arrow goes to `/avatars`, use `AppHeader`
+- **QuickFlow.tsx**: Use `AppHeader`
 
-Add `avatarProfileId` to the body object:
+#### 4. Clean up
+- Remove or keep `Studio.tsx` as a redirect — depends on whether any deep links exist. Safest: keep the route but redirect to `/avatars`.
 
-```typescript
-body: {
-  toolType: "avatar_base_pack_generation",
-  pipelineType: "multimodal_image_generation",
-  sourceMode: "avatar_workspace",
-  avatarProfileId,                        // ← ADD THIS
-  referenceAssetIds: referenceAssetIds,
-  generationId: gen.id,
-  input: { ... },
-},
-```
-
-### No other callers affected
-
-- `QuickFlow.tsx` uses `sourceMode: "quick_flow"` — does not need `avatarProfileId`.
-- `useBatches.ts` uses `process-generation` — unrelated.
-
-### Verification
-
-In browser devtools Network tab, trigger a generation from Avatar Details, inspect the `create-generation` request body and confirm `avatarProfileId` is present and matches the current avatar UUID from the URL.
+### Affected Files
+| File | Change |
+|---|---|
+| `src/App.tsx` | Update routes, redirect `/studio` → `/avatars` |
+| `src/components/AppHeader.tsx` | **New** — shared header with nav links |
+| `src/pages/AvatarLibrary.tsx` | Use `AppHeader`, remove back arrow to studio |
+| `src/pages/AvatarDetails.tsx` | Use `AppHeader` |
+| `src/pages/QuickFlow.tsx` | Use `AppHeader` |
+| `src/pages/Studio.tsx` | Optional: keep as redirect or delete |
 
 ### Risks
-
-None — this is a one-field addition to an existing payload. No other flows are touched.
+- Minimal — routing change only. No data/backend changes.
+- Studio page preserved as redirect so no broken bookmarks.
 
