@@ -16,6 +16,7 @@ export interface AvatarGeneration {
   pipeline_type: string;
   source_mode: string | null;
   tool_type: string | null;
+  result_asset_id: string | null;
 }
 
 export function useAvatarGenerations(avatarProfileId: string | undefined) {
@@ -34,7 +35,7 @@ export function useAvatarGenerations(avatarProfileId: string | undefined) {
       const { data, error } = await supabase
         .from("generations")
         .select(
-          "id, status, current_step, progress_pct, result_url, error_code, created_at, started_at, finished_at, extracted_prompt, ai_parameters, pipeline_type, source_mode, tool_type"
+          "id, status, current_step, progress_pct, result_url, error_code, created_at, started_at, finished_at, extracted_prompt, ai_parameters, pipeline_type, source_mode, tool_type, result_asset_id"
         )
         .eq("avatar_profile_id", avatarProfileId!)
         .order("created_at", { ascending: false });

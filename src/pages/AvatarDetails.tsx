@@ -1,28 +1,25 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { GenerateBaseAnglesModal } from "@/components/avatar/GenerateBaseAnglesModal";
-import { GenerationHistorySection } from "@/components/avatar/GenerationHistorySection";
+import { ImageDetailModal, GridItem } from "@/components/avatar/ImageDetailModal";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvatarProfile } from "@/hooks/useAvatarProfile";
+import { useAvatarGenerations } from "@/hooks/useAvatarGenerations";
 
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import {
   ImageIcon,
   Images,
   Wand2,
   AlertTriangle,
   Check,
-  ChevronDown,
   X,
   MousePointerClick,
+  Loader2,
 } from "lucide-react";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
@@ -34,15 +31,14 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 export default function AvatarDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  
+
   const { data: avatar, isLoading, error } = useAvatarProfile(id);
+  const { data: generations } = useAvatarGenerations(id);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [anglesOpen, setAnglesOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  // Image preview state (normal mode)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewName, setPreviewName] = useState<string | null>(null);
+  const [detailItem, setDetailItem] = useState<GridItem | null>(null);
 
   const openGenerateModal = () => setAnglesOpen(true);
 
@@ -60,9 +56,7 @@ export default function AvatarDetails() {
     setSelectionMode(false);
   };
 
-  const enterSelectionMode = () => {
-    setSelectionMode(true);
-  };
+  const enterSelectionMode = () => setSelectionMode(true);
 
   const selectAll = () => {
     if (!avatar) return;
@@ -73,15 +67,63 @@ export default function AvatarDetails() {
     }
   };
 
-  const handleCardClick = (ref: { asset_id: string; file_url: string | null; asset_name: string | null }) => {
-    if (selectionMode) {
-      toggleSelect(ref.asset_id);
+  // Build unified grid items
+  const gridItems: GridItem[] = useMemo(() => {
+    if (!avatar) return [];
+    const gens = generations ?? [];
+
+    const activeGens = gens.filter((g) =>
+      ["pending", "queued", "processing"].includes(g.status)
+    );
+    const failedGens = gens.filter(
+      (g) => g.status === "failed" && !g.result_asset_id
+    );
+    const completedGens = gens.filter(
+      (g) => g.status === "completed"
+    );
+
+    // Map result_asset_id → generation for completed gens
+    const resultAssetToGen = new Map(
+      completedGens
+        .filter((g) => g.result_asset_id)
+        .map((g) => [g.result_asset_id!, g])
+    );
+
+    // Track which asset_ids are covered by references
+    const refAssetIds = new Set(avatar.references.map((r) => r.asset_id));
+
+    // Active generations as placeholders (top of grid)
+    const activeItems: GridItem[] = activeGens.map((g) => ({
+      type: "generation" as const,
+      generation: g,
+    }));
+
+    // Reference assets with matched generation metadata
+    const refItems: GridItem[] = avatar.references.map((ref) => ({
+      type: "reference" as const,
+      ref,
+      generation: resultAssetToGen.get(ref.asset_id),
+    }));
+
+    // Completed generations not matched to any reference (safety net)
+    const unmatchedCompleted: GridItem[] = completedGens
+      .filter((g) => g.result_asset_id && !refAssetIds.has(g.result_asset_id))
+      .map((g) => ({ type: "generation" as const, generation: g }));
+
+    // Failed generations at end
+    const failedItems: GridItem[] = failedGens.map((g) => ({
+      type: "generation" as const,
+      generation: g,
+    }));
+
+    return [...activeItems, ...refItems, ...unmatchedCompleted, ...failedItems];
+  }, [avatar, generations]);
+
+  const handleCardClick = (item: GridItem) => {
+    if (selectionMode && item.type === "reference") {
+      toggleSelect(item.ref.asset_id);
     } else {
-      // Normal mode: open image preview
-      if (ref.file_url) {
-        setPreviewUrl(ref.file_url);
-        setPreviewName(ref.asset_name ?? "Referência");
-      }
+      setDetailItem(item);
     }
   };
 
@@ -126,6 +168,7 @@ export default function AvatarDetails() {
 
   const status = statusConfig[avatar.status] ?? { label: avatar.status, variant: "outline" as const };
   const hasSelection = selectedIds.size > 0;
+  const refCount = avatar.references.length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -154,11 +197,10 @@ export default function AvatarDetails() {
               </div>
               <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
                 <Images className="h-4 w-4" />
-                <span>{avatar.references.length} imagem{avatar.references.length !== 1 ? "ns" : ""}</span>
+                <span>{refCount} imagem{refCount !== 1 ? "ns" : ""}</span>
               </div>
             </div>
 
-            {/* Primary CTA — standalone, no selection coupling */}
             <div className="flex flex-wrap gap-2 mt-4">
               <Button className="gap-2" onClick={openGenerateModal}>
                 <Wand2 className="h-4 w-4" />
@@ -171,7 +213,7 @@ export default function AvatarDetails() {
         {/* Gallery Header */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-lg font-semibold">Biblioteca do Avatar</h2>
-          {avatar.references.length > 0 && (
+          {refCount > 0 && (
             <Button
               variant={selectionMode ? "secondary" : "outline"}
               size="sm"
@@ -202,7 +244,7 @@ export default function AvatarDetails() {
               </span>
               <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs h-7">
                 <Check className="h-3 w-3 mr-1" />
-                {selectedIds.size === avatar.references.length ? "Desmarcar todas" : "Selecionar todas"}
+                {selectedIds.size === refCount ? "Desmarcar todas" : "Selecionar todas"}
               </Button>
               {hasSelection && (
                 <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="text-xs h-7">
@@ -217,8 +259,8 @@ export default function AvatarDetails() {
           </div>
         )}
 
-        {/* Gallery Grid */}
-        {avatar.references.length === 0 ? (
+        {/* Unified Grid */}
+        {gridItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="rounded-full bg-muted p-4 mb-4">
               <Images className="h-8 w-8 text-muted-foreground" />
@@ -230,80 +272,37 @@ export default function AvatarDetails() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {avatar.references.map((ref) => {
-              const isSelected = selectedIds.has(ref.asset_id);
+            {gridItems.map((item) => {
+              if (item.type === "reference") {
+                return (
+                  <ReferenceCard
+                    key={`ref-${item.ref.id}`}
+                    item={item}
+                    selectionMode={selectionMode}
+                    isSelected={selectedIds.has(item.ref.asset_id)}
+                    onToggle={() => toggleSelect(item.ref.asset_id)}
+                    onClick={() => handleCardClick(item)}
+                  />
+                );
+              }
+              // Generation placeholder (active/failed/unmatched completed)
               return (
-                <div
-                  key={ref.id}
-                  className={`group relative aspect-square rounded-lg border overflow-hidden bg-muted transition-all ${
-                    selectionMode
-                      ? isSelected
-                        ? "border-primary ring-2 ring-primary/30 cursor-pointer"
-                        : "border-border/50 hover:border-primary/40 cursor-pointer"
-                      : "border-border/50 hover:border-border cursor-pointer"
-                  }`}
-                  onClick={() => handleCardClick(ref)}
-                >
-                  {ref.file_url ? (
-                    <img
-                      src={ref.file_url}
-                      alt={ref.asset_name ?? "Referência"}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
-                    </div>
-                  )}
-
-                  {/* Checkbox — only in selection mode */}
-                  {selectionMode && (
-                    <div className={`absolute top-2 left-2 transition-opacity ${isSelected ? "opacity-100" : "opacity-60 group-hover:opacity-100"}`}>
-                      <Checkbox
-                        checked={isSelected}
-                        className="h-5 w-5 rounded border-2 bg-background/80 backdrop-blur-sm"
-                        onClick={(e) => e.stopPropagation()}
-                        onCheckedChange={() => toggleSelect(ref.asset_id)}
-                      />
-                    </div>
-                  )}
-
-                  {/* Selection overlay */}
-                  {selectionMode && isSelected && (
-                    <div className="absolute inset-0 bg-primary/10 pointer-events-none" />
-                  )}
-                </div>
+                <GenerationCard
+                  key={`gen-${item.generation.id}`}
+                  item={item}
+                  onClick={() => handleCardClick(item)}
+                />
               );
             })}
           </div>
         )}
 
-        {/* Generation History (collapsible, compact) */}
-        <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
-          <CollapsibleTrigger asChild>
-            <button className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1">
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${historyOpen ? "" : "-rotate-90"}`} />
-              Histórico de Gerações
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-2">
-            <GenerationHistorySection avatarProfileId={avatar.id} />
-          </CollapsibleContent>
-        </Collapsible>
-
-        {/* Image Preview Dialog (normal mode) */}
-        <Dialog open={!!previewUrl} onOpenChange={(v) => !v && setPreviewUrl(null)}>
-          <DialogContent className="max-w-2xl p-2 bg-background/95 backdrop-blur-sm">
-            {previewUrl && (
-              <img
-                src={previewUrl}
-                alt={previewName ?? "Imagem"}
-                className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
-              />
-            )}
-          </DialogContent>
-        </Dialog>
+        {/* Image Detail Modal */}
+        <ImageDetailModal
+          open={!!detailItem}
+          onOpenChange={(v) => !v && setDetailItem(null)}
+          item={detailItem}
+        />
 
         {/* Generate Base Angles Modal */}
         <GenerateBaseAnglesModal
@@ -314,6 +313,135 @@ export default function AvatarDetails() {
           preselectedAssetIds={selectionMode && hasSelection ? Array.from(selectedIds) : undefined}
         />
       </main>
+    </div>
+  );
+}
+
+/* ── Reference Card ── */
+function ReferenceCard({
+  item,
+  selectionMode,
+  isSelected,
+  onToggle,
+  onClick,
+}: {
+  item: GridItem & { type: "reference" };
+  selectionMode: boolean;
+  isSelected: boolean;
+  onToggle: () => void;
+  onClick: () => void;
+}) {
+  const ref = item.ref;
+  return (
+    <div
+      className={`group relative aspect-square rounded-lg border overflow-hidden bg-muted transition-all cursor-pointer ${
+        selectionMode
+          ? isSelected
+            ? "border-primary ring-2 ring-primary/30"
+            : "border-border/50 hover:border-primary/40"
+          : "border-border/50 hover:border-border"
+      }`}
+      onClick={onClick}
+    >
+      {ref.file_url ? (
+        <img
+          src={ref.file_url}
+          alt={ref.asset_name ?? "Referência"}
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center">
+          <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+        </div>
+      )}
+
+      {selectionMode && (
+        <div className={`absolute top-2 left-2 transition-opacity ${isSelected ? "opacity-100" : "opacity-60 group-hover:opacity-100"}`}>
+          <Checkbox
+            checked={isSelected}
+            className="h-5 w-5 rounded border-2 bg-background/80 backdrop-blur-sm"
+            onClick={(e) => e.stopPropagation()}
+            onCheckedChange={onToggle}
+          />
+        </div>
+      )}
+
+      {selectionMode && isSelected && (
+        <div className="absolute inset-0 bg-primary/10 pointer-events-none" />
+      )}
+    </div>
+  );
+}
+
+/* ── Generation Placeholder Card ── */
+function GenerationCard({
+  item,
+  onClick,
+}: {
+  item: GridItem & { type: "generation" };
+  onClick: () => void;
+}) {
+  const gen = item.generation;
+  const isActive = ["pending", "queued", "processing"].includes(gen.status);
+  const isFailed = gen.status === "failed";
+  const isCompleted = gen.status === "completed";
+
+  const shotLabel =
+    gen.ai_parameters &&
+    typeof gen.ai_parameters === "object" &&
+    "shot_label" in gen.ai_parameters
+      ? String((gen.ai_parameters as Record<string, unknown>).shot_label)
+      : null;
+
+  return (
+    <div
+      className={`group relative aspect-square rounded-lg border overflow-hidden cursor-pointer transition-all ${
+        isActive
+          ? "border-primary/40 bg-primary/5"
+          : isFailed
+          ? "border-destructive/40 bg-destructive/5"
+          : "border-border/50 bg-muted hover:border-border"
+      }`}
+      onClick={onClick}
+    >
+      {isActive ? (
+        <div className="flex flex-col items-center justify-center h-full gap-2 p-3">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <span className="text-[10px] text-muted-foreground text-center leading-tight">
+            {gen.current_step ?? "Processando…"}
+          </span>
+          {gen.progress_pct > 0 && (
+            <Progress value={gen.progress_pct} className="w-3/4 h-1.5" />
+          )}
+          {shotLabel && (
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+              {shotLabel}
+            </Badge>
+          )}
+        </div>
+      ) : isFailed ? (
+        <div className="flex flex-col items-center justify-center h-full gap-2 p-3">
+          <AlertTriangle className="h-6 w-6 text-destructive" />
+          <span className="text-[10px] text-destructive text-center leading-tight">Falhou</span>
+          {shotLabel && (
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+              {shotLabel}
+            </Badge>
+          )}
+        </div>
+      ) : isCompleted && gen.result_url ? (
+        <img
+          src={gen.result_url}
+          alt={shotLabel ?? "Resultado"}
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center">
+          <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+        </div>
+      )}
     </div>
   );
 }
