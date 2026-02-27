@@ -89,7 +89,7 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto gap-4">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 flex-wrap">
-            {shotLabel ?? (item.type === "reference" ? (item.ref.asset_name ?? "Referência") : "Geração")}
+            {shotLabel ?? (isOriginalRef ? "Referência Original" : generation ? "Imagem Gerada" : "Referência")}
             {badge && <Badge variant={badge.variant}>{badge.label}</Badge>}
             {isOriginalRef && (
               <Badge variant="outline" className="text-xs">
