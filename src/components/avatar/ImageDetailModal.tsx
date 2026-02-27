@@ -115,12 +115,20 @@ function getPipelineLabel(pt: string | null): string {
   return map[pt] ?? pt.replace(/_/g, " ");
 }
 
-function getModelUsed(gen?: AvatarGeneration): string | null {
+function getModelUsed(gen?: AvatarGeneration): { prompt_model: string | null; image_model: string | null } {
   const debug = getAiParam(gen, "_debug") as Record<string, unknown> | null;
-  if (debug?.model) return String(debug.model);
-  const model = getAiParam(gen, "model");
-  if (model) return String(model);
-  return gen?.tool_type ?? null;
+  // Check if ai_parameters has explicit model info from the pipeline
+  const hasOpenaiResponse = !!getAiParam(gen, "openai_raw_response");
+  const promptModel = hasOpenaiResponse ? "GPT-4o" : (debug?.prompt_model ? String(debug.prompt_model) : null);
+  
+  // The image model is Gemini — check debug or infer from pipeline
+  const imageModel = debug?.image_model
+    ? String(debug.image_model)
+    : hasOpenaiResponse
+    ? "Gemini 2.0 Flash"
+    : (debug?.model ? String(debug.model) : null);
+
+  return { prompt_model: promptModel, image_model: imageModel };
 }
 
 function getRefCount(gen?: AvatarGeneration): number | null {
@@ -170,7 +178,7 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
 
   const shotLabel = getHumanShotLabel(generation);
   const rawShotLabel = getRawShotLabel(generation);
-  const modelUsed = getModelUsed(generation);
+  const models = getModelUsed(generation);
   const refCount = getRefCount(generation) ?? refAssets?.length ?? null;
 
   const badge = generation
@@ -191,7 +199,9 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
     ? "Imagem Gerada"
     : "Referência";
 
-  const promptText = generation?.extracted_prompt;
+  // Get prompt from ai_parameters (extracted_positive_prompt is the clean version)
+  const aiParams = generation?.ai_parameters as Record<string, unknown> | null;
+  const promptText = (aiParams?.extracted_positive_prompt as string) || generation?.extracted_prompt || null;
   const promptIsLong = promptText && promptText.length > 200;
 
   // Build generation summary sentence
@@ -204,7 +214,7 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
     if (refCount && refCount > 0) {
       summaryParts.push(`${refCount} referência${refCount > 1 ? "s" : ""} usada${refCount > 1 ? "s" : ""}`);
     }
-    if (modelUsed) summaryParts.push(`Modelo: ${modelUsed}`);
+    if (models.image_model) summaryParts.push(`Modelo: ${models.image_model}`);
   }
 
   return (
@@ -307,9 +317,15 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
                     {formatTs(generation.created_at)}
                   </MetaRow>
 
-                  {modelUsed && (
-                    <MetaRow icon={Cpu} label="Modelo">
-                      <span className="font-mono text-[11px]">{modelUsed}</span>
+                  {models.image_model && (
+                    <MetaRow icon={Cpu} label="Modelo de imagem">
+                      <span className="font-mono text-[11px]">{models.image_model}</span>
+                    </MetaRow>
+                  )}
+
+                  {models.prompt_model && (
+                    <MetaRow icon={Cpu} label="Modelo de prompt">
+                      <span className="font-mono text-[11px]">{models.prompt_model}</span>
                     </MetaRow>
                   )}
 
