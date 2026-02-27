@@ -261,10 +261,10 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto gap-0 p-0">
-        <div className="flex flex-col md:flex-row">
+      <DialogContent className="max-w-5xl h-[92vh] overflow-hidden gap-0 p-0">
+        <div className="flex flex-col md:flex-row h-full">
           {/* Left: Image preview */}
-          <div className="md:w-[55%] w-full shrink-0 bg-muted flex items-center justify-center min-h-[300px] md:min-h-[520px] relative">
+          <div className="md:w-[55%] w-full shrink-0 bg-muted flex items-center justify-center h-[280px] md:h-full relative overflow-hidden">
             {isActive ? (
               <div className="flex flex-col items-center gap-3 text-muted-foreground p-6">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -297,7 +297,7 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
           </div>
 
           {/* Right: Info panel */}
-          <div className="md:w-[45%] w-full flex flex-col p-5 gap-0 overflow-y-auto max-h-[70vh] md:max-h-[92vh]">
+          <div className="md:w-[45%] w-full flex flex-col p-5 gap-0 overflow-y-auto">
             {/* Header */}
             <DialogHeader className="space-y-1 pb-3">
               <DialogTitle className="text-base font-semibold leading-snug">
