@@ -297,7 +297,7 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
           </div>
 
           {/* Right: Info panel */}
-          <div className="md:w-[45%] w-full flex flex-col p-5 gap-0 overflow-y-auto">
+          <div className="md:w-[45%] w-full flex flex-col p-5 gap-0 overflow-y-auto min-h-0">
             {/* Header */}
             <DialogHeader className="space-y-1 pb-3">
               <DialogTitle className="text-base font-semibold leading-snug">
