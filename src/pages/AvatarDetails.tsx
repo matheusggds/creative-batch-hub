@@ -5,14 +5,12 @@ import { GenerationHistorySection } from "@/components/avatar/GenerationHistoryS
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvatarProfile } from "@/hooks/useAvatarProfile";
 import { useAuth } from "@/hooks/useAuth";
+import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  ArrowLeft,
-  Sparkles,
-  LogOut,
   ImageIcon,
   Images,
   Plus,
@@ -31,7 +29,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 export default function AvatarDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
   const { data: avatar, isLoading, error } = useAvatarProfile(id);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [anglesOpen, setAnglesOpen] = useState(false);
@@ -59,7 +57,7 @@ export default function AvatarDetails() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header email={user?.email} onBack={() => navigate("/avatars")} onSignOut={signOut} />
+        <AppHeader />
         <main className="container py-8 space-y-6">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-48 w-full rounded-xl" />
@@ -77,7 +75,7 @@ export default function AvatarDetails() {
   if (error || !avatar) {
     return (
       <div className="min-h-screen bg-background">
-        <Header email={user?.email} onBack={() => navigate("/avatars")} onSignOut={signOut} />
+        <AppHeader />
         <main className="container py-20 flex flex-col items-center text-center">
           <div className="rounded-full bg-destructive/10 p-4 mb-4">
             <AlertTriangle className="h-8 w-8 text-destructive" />
@@ -99,7 +97,7 @@ export default function AvatarDetails() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header email={user?.email} onBack={() => navigate("/avatars")} onSignOut={signOut} />
+      <AppHeader />
 
       <main className="container py-8 space-y-6">
         {/* Hero: Cover + Info */}
@@ -255,35 +253,3 @@ export default function AvatarDetails() {
   );
 }
 
-/* Shared header component */
-function Header({
-  email,
-  onBack,
-  onSignOut,
-}: {
-  email?: string;
-  onBack: () => void;
-  onSignOut: () => void;
-}) {
-  return (
-    <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-      <div className="container flex h-14 items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <Sparkles className="h-4 w-4 text-primary" />
-          </div>
-          <span className="font-semibold tracking-tight">Avatar Details</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground truncate max-w-[160px]">{email}</span>
-          <Button variant="ghost" size="icon" onClick={onSignOut}>
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    </header>
-  );
-}

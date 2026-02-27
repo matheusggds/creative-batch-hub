@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Auth from "./pages/Auth";
-import Studio from "./pages/Studio";
 import AvatarLibrary from "./pages/AvatarLibrary";
 import AvatarDetails from "./pages/AvatarDetails";
 import QuickFlow from "./pages/QuickFlow";
@@ -23,7 +22,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Carregando...</div>;
-  if (user) return <Navigate to="/studio" replace />;
+  if (user) return <Navigate to="/avatars" replace />;
   return <>{children}</>;
 }
 
@@ -36,7 +35,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/" element={<PublicRoute><Auth /></PublicRoute>} />
-            <Route path="/studio" element={<ProtectedRoute><Studio /></ProtectedRoute>} />
+            <Route path="/studio" element={<Navigate to="/avatars" replace />} />
             <Route path="/avatars" element={<ProtectedRoute><AvatarLibrary /></ProtectedRoute>} />
             <Route path="/avatars/:id" element={<ProtectedRoute><AvatarDetails /></ProtectedRoute>} />
             <Route path="/quick" element={<ProtectedRoute><QuickFlow /></ProtectedRoute>} />
