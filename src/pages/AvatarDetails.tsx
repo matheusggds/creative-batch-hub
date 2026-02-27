@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { GenerateBaseAnglesModal } from "@/components/avatar/GenerateBaseAnglesModal";
-import { GenerationStatusPanel } from "@/components/avatar/GenerationStatusPanel";
 import { GenerationHistorySection } from "@/components/avatar/GenerationHistorySection";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvatarProfile } from "@/hooks/useAvatarProfile";
@@ -10,14 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   ImageIcon,
   Images,
-  Plus,
   Wand2,
-  Palette,
   AlertTriangle,
   Check,
+  ChevronDown,
 } from "lucide-react";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
@@ -33,13 +32,13 @@ export default function AvatarDetails() {
   const { data: avatar, isLoading, error } = useAvatarProfile(id);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [anglesOpen, setAnglesOpen] = useState(false);
-  const [activeGenerationId, setActiveGenerationId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(true);
 
-  const toggleSelect = (refId: string) => {
+  const toggleSelect = (assetId: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(refId)) next.delete(refId);
-      else next.add(refId);
+      if (next.has(assetId)) next.delete(assetId);
+      else next.add(assetId);
       return next;
     });
   };
@@ -49,7 +48,7 @@ export default function AvatarDetails() {
     if (selectedIds.size === avatar.references.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(avatar.references.map((r) => r.id)));
+      setSelectedIds(new Set(avatar.references.map((r) => r.asset_id)));
     }
   };
 
@@ -119,7 +118,7 @@ export default function AvatarDetails() {
             </div>
           </div>
 
-          {/* Info + Actions */}
+          {/* Info + Primary CTA */}
           <div className="flex-1 flex flex-col justify-between min-w-0">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -134,19 +133,16 @@ export default function AvatarDetails() {
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Primary CTA */}
             <div className="flex flex-wrap gap-2 mt-4">
-              <Button variant="outline" className="gap-2" onClick={() => setAnglesOpen(true)}>
+              <Button className="gap-2" onClick={() => setAnglesOpen(true)}>
                 <Wand2 className="h-4 w-4" />
                 Gerar Ângulos Base
-              </Button>
-              <Button variant="outline" className="gap-2">
-                <Plus className="h-4 w-4" />
-                Adicionar Imagem
-              </Button>
-              <Button className="gap-2" disabled={!hasSelection}>
-                <Palette className="h-4 w-4" />
-                Criar Novo Look{hasSelection ? ` (${selectedIds.size})` : ""}
+                {hasSelection && (
+                  <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
+                    {selectedIds.size} ref
+                  </Badge>
+                )}
               </Button>
             </div>
           </div>
@@ -180,15 +176,11 @@ export default function AvatarDetails() {
             <p className="text-sm text-muted-foreground mt-1 max-w-xs">
               Adicione imagens para treinar e gerar variações deste avatar.
             </p>
-            <Button variant="outline" className="gap-2 mt-4">
-              <Plus className="h-4 w-4" />
-              Adicionar Imagem
-            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {avatar.references.map((ref) => {
-              const isSelected = selectedIds.has(ref.id);
+              const isSelected = selectedIds.has(ref.asset_id);
               return (
                 <div
                   key={ref.id}
@@ -197,7 +189,7 @@ export default function AvatarDetails() {
                       ? "border-primary ring-2 ring-primary/30"
                       : "border-border/50 hover:border-primary/40"
                   }`}
-                  onClick={() => toggleSelect(ref.id)}
+                  onClick={() => toggleSelect(ref.asset_id)}
                 >
                   {ref.file_url ? (
                     <img
@@ -222,23 +214,27 @@ export default function AvatarDetails() {
                       checked={isSelected}
                       className="h-5 w-5 rounded border-2 bg-background/80 backdrop-blur-sm"
                       onClick={(e) => e.stopPropagation()}
-                      onCheckedChange={() => toggleSelect(ref.id)}
+                      onCheckedChange={() => toggleSelect(ref.asset_id)}
                     />
                   </div>
-
                 </div>
               );
             })}
           </div>
         )}
 
-        {/* Active Generation Status */}
-        {activeGenerationId && (
-          <GenerationStatusPanel generationId={activeGenerationId} />
-        )}
-
-        {/* Generation History */}
-        <GenerationHistorySection avatarProfileId={avatar.id} />
+        {/* Generation History (collapsible) */}
+        <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
+          <CollapsibleTrigger asChild>
+            <button className="flex items-center gap-2 text-lg font-semibold hover:text-foreground/80 transition-colors w-full text-left">
+              <ChevronDown className={`h-4 w-4 transition-transform ${historyOpen ? "" : "-rotate-90"}`} />
+              Histórico de Gerações
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-3">
+            <GenerationHistorySection avatarProfileId={avatar.id} />
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Generate Base Angles Modal */}
         <GenerateBaseAnglesModal
@@ -246,10 +242,9 @@ export default function AvatarDetails() {
           onOpenChange={setAnglesOpen}
           avatarProfileId={avatar.id}
           references={avatar.references}
-          onGenerationCreated={(gId) => setActiveGenerationId(gId)}
+          preselectedAssetIds={Array.from(selectedIds)}
         />
       </main>
     </div>
   );
 }
-

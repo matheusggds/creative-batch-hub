@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -51,6 +51,7 @@ interface Props {
   avatarProfileId: string;
   references: AvatarReferenceAsset[];
   onGenerationCreated?: (generationId: string) => void;
+  preselectedAssetIds?: string[];
 }
 
 export function GenerateBaseAnglesModal({
@@ -59,6 +60,7 @@ export function GenerateBaseAnglesModal({
   avatarProfileId,
   references,
   onGenerationCreated,
+  preselectedAssetIds,
 }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -67,6 +69,13 @@ export function GenerateBaseAnglesModal({
   const [selectedShotIds, setSelectedShotIds] = useState<Set<string>>(new Set());
   const [focusPiece, setFocusPiece] = useState("");
   const [createdCount, setCreatedCount] = useState<number | null>(null);
+
+  // Sync preselected asset IDs when modal opens
+  useEffect(() => {
+    if (open && preselectedAssetIds && preselectedAssetIds.length > 0) {
+      setSelectedRefIds(new Set(preselectedAssetIds.slice(0, 3)));
+    }
+  }, [open]);
 
   const reset = () => {
     setSelectedRefIds(new Set());
