@@ -147,69 +147,17 @@ export function GenerateBaseAnglesModal({
         throw new Error("Selecione ao menos 1 ângulo.");
       }
 
-      // Create one generation per selected shot
-      const generations = shotIds.map((shotId) => ({
-        user_id: user.id,
-        avatar_profile_id: avatarProfileId,
-        reference_asset_id: referenceAssetIds[0], // backward compat with process-generation
-        status: "pending" as const,
-        pipeline_type: "multimodal_image_generation",
-        tool_type: "avatar_base_pack_generation",
-        source_mode: "avatar_workspace",
-        ai_parameters: {
-          promptPackId: "ugc-avatar-reference-pack-v1",
-          shotId,
-          focusPiece: focusPiece.trim() || undefined,
-          geminiPreferredModel: "gemini-3-pro-image-preview",
-          _debug: {
-            pipeline: "create-generation",
-            selectedRefAssetIds: referenceAssetIds,
-            selectedShotId: shotId,
-            shotLabel: SHOT_LIST.find((s) => s.id === shotId)?.label ?? shotId,
-            focusPiece: focusPiece.trim() || null,
-            refCount: referenceAssetIds.length,
-            submittedAt: new Date().toISOString(),
-          },
-        } as unknown as Record<string, never>,
-      }));
-
-      const { data: insertedGens, error: genError } = await supabase
-        .from("generations")
-        .insert(generations)
-        .select();
-
-      if (genError) throw genError;
-      if (!insertedGens?.length) throw new Error("No generations created");
-
-      // For each generation, populate generation_reference_assets
-      const refAssetRows = insertedGens.flatMap((gen) =>
-        referenceAssetIds.map((assetId, idx) => ({
-          generation_id: gen.id,
-          asset_id: assetId,
-          role: "reference",
-          sort_order: idx,
-        }))
-      );
-
-      if (refAssetRows.length > 0) {
-        const { error: refError } = await supabase
-          .from("generation_reference_assets")
-          .insert(refAssetRows);
-        if (refError) console.error("generation_reference_assets insert error:", refError);
-      }
-
-      // Fire-and-forget: invoke create-generation (queued job-based pipeline)
-      for (const gen of insertedGens) {
-        const shotId = (gen.ai_parameters as Record<string, unknown>)?.shotId as string;
-        supabase.functions
-          .invoke("create-generation", {
+      // Call create-generation for each shot — backend creates generation,
+      // reference asset links, jobs, and events. No manual DB inserts.
+      const results = await Promise.all(
+        shotIds.map(async (shotId) => {
+          const { data, error } = await supabase.functions.invoke("create-generation", {
             body: {
               toolType: "avatar_base_pack_generation",
               pipelineType: "multimodal_image_generation",
               sourceMode: "avatar_workspace",
               avatarProfileId,
-              referenceAssetIds: referenceAssetIds,
-              generationId: gen.id,
+              referenceAssetIds,
               input: {
                 shotId,
                 focusPiece: focusPiece.trim() || undefined,
@@ -217,20 +165,25 @@ export function GenerateBaseAnglesModal({
                 promptPackId: "ugc-avatar-reference-pack-v1",
               },
             },
-          })
-          .then(({ error }) => {
-            if (error) console.error(`Edge function error for ${gen.id}:`, error);
           });
-      }
 
-      return insertedGens;
+          if (error) {
+            console.error(`create-generation error for shot ${shotId}:`, error);
+            throw new Error(`Falha ao criar geração para ${SHOT_LIST.find((s) => s.id === shotId)?.label ?? shotId}`);
+          }
+
+          return data as { generationId: string };
+        })
+      );
+
+      return results;
     },
     onSuccess: (data) => {
       setCreatedCount(data.length);
       toast.success(`${data.length} geração(ões) criada(s) com sucesso!`);
       qc.invalidateQueries({ queryKey: ["avatar_generations", avatarProfileId] });
       // Notify parent with first generation for status panel
-      if (data[0]?.id) onGenerationCreated?.(data[0].id);
+      if (data[0]?.generationId) onGenerationCreated?.(data[0].generationId);
     },
     onError: (err: Error) => {
       toast.error("Erro ao criar gerações.");
