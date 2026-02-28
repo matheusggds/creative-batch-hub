@@ -182,7 +182,7 @@ export function NewGenerationModal({
         onOpenChange(v);
       }}
     >
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Nova Geração</DialogTitle>
           <DialogDescription>
@@ -341,7 +341,7 @@ function ReferencePicker({
           <span className="text-xs text-muted-foreground">Pré-carregado da biblioteca</span>
         )}
       </div>
-      <ScrollArea className="max-h-[280px] rounded-lg border border-border/50 p-2">
+      <ScrollArea className="h-[340px] rounded-lg border border-border/50 p-2">
         {references.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">Nenhuma imagem disponível.</p>
         ) : (
