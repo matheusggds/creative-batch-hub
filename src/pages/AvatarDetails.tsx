@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { GenerateBaseAnglesModal } from "@/components/avatar/GenerateBaseAnglesModal";
+import { NewGenerationModal } from "@/components/avatar/NewGenerationModal";
 import { ImageDetailModal, GridItem } from "@/components/avatar/ImageDetailModal";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvatarProfile } from "@/hooks/useAvatarProfile";
@@ -204,7 +204,7 @@ export default function AvatarDetails() {
             <div className="flex flex-wrap gap-2 mt-4">
               <Button className="gap-2" onClick={openGenerateModal}>
                 <Wand2 className="h-4 w-4" />
-                Gerar Ângulos Base
+                Nova Geração
               </Button>
             </div>
           </div>
@@ -254,7 +254,7 @@ export default function AvatarDetails() {
             </div>
             <Button size="sm" onClick={openGenerateModal} disabled={!hasSelection} className="gap-1.5">
               <Wand2 className="h-3.5 w-3.5" />
-              Gerar da seleção ({selectedIds.size})
+              Nova Geração ({selectedIds.size})
             </Button>
           </div>
         )}
@@ -304,8 +304,8 @@ export default function AvatarDetails() {
           item={detailItem}
         />
 
-        {/* Generate Base Angles Modal */}
-        <GenerateBaseAnglesModal
+        {/* Unified New Generation Modal */}
+        <NewGenerationModal
           open={anglesOpen}
           onOpenChange={setAnglesOpen}
           avatarProfileId={avatar.id}
