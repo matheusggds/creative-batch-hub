@@ -20,6 +20,7 @@ import {
   X,
   MousePointerClick,
   Loader2,
+  Download,
 } from "lucide-react";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
@@ -404,6 +405,11 @@ function ReferenceCard({
         </div>
       )}
 
+      {/* Download button */}
+      {ref.file_url && !selectionMode && (
+        <DownloadButton url={ref.file_url} name={shotLabel ?? ref.asset_name ?? "referencia"} />
+      )}
+
       {/* Bottom label overlay */}
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-2 pb-1.5 pt-6 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
         <span className="text-[10px] font-medium text-white leading-tight line-clamp-1">
@@ -512,6 +518,7 @@ function GenerationCard({
               </Badge>
             </div>
           )}
+          <DownloadButton url={gen.result_url} name={shotLabel ?? "gerada"} />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-2 pb-1.5 pt-6 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
             <span className="text-[10px] font-medium text-white leading-tight line-clamp-1">
               {shotLabel ?? "Imagem Gerada"}
@@ -524,5 +531,34 @@ function GenerationCard({
         </div>
       )}
     </div>
+  );
+}
+
+/* ── Download Button ── */
+function DownloadButton({ url, name }: { url: string; name: string }) {
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const ext = blob.type.includes("png") ? "png" : "jpg";
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${name.replace(/\s+/g, "_")}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
+
+  return (
+    <button
+      onClick={handleDownload}
+      className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 rounded-md bg-background/80 backdrop-blur-sm p-1.5 border border-border/50 hover:bg-background text-foreground"
+      title="Download"
+    >
+      <Download className="h-3.5 w-3.5" />
+    </button>
   );
 }
