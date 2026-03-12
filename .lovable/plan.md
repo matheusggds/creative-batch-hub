@@ -1,63 +1,93 @@
 
 
-## Plan: Unify Avatar Library with Generation Timeline
+## Refatoração do Quick Flow — Plano de Implementação
 
-### Summary
-Remove the separate Generation History section. Show in-progress and failed generations as inline cards in the Avatar Library grid. Replace the raw image preview with a rich Image Detail Modal.
+### Visão Geral
 
-### Changes
+Reescrever `src/pages/QuickFlow.tsx` como um fluxo de 2 colunas: esquerda = imagem de referência (dropzone → preview), direita = resultado da variação (empty state → loading → resultado). Upload automático em background ao selecionar imagem. Payload corrigido para o contrato `create-generation`.
 
-#### 1. New component: `src/components/avatar/ImageDetailModal.tsx`
-Rich modal for clicking any image card. Shows:
-- Large image preview (or placeholder for in-progress/error for failed)
-- Status badge, timestamp, shot/angle label
-- Whether image is original reference or generated
-- Reference images used (from `generation_reference_assets` via generation data)
-- Extracted prompt / debug info (collapsible)
-- Generation ID for debugging
-- Actions: "Use as Reference" (future), Close
+---
 
-#### 2. Refactor `src/pages/AvatarDetails.tsx`
-- Import and use `useAvatarGenerations` to get all generations for this avatar
-- Build a unified grid: reference assets + active/failed generation placeholders
-  - Completed generations already appear as references (pipeline adds to `avatar_reference_assets`)
-  - Active generations (pending/processing/queued) → placeholder cards with spinner + progress
-  - Failed generations (no `result_asset_id`) → error cards with inline error state
-- Remove the `Collapsible` + `GenerationHistorySection` import entirely
-- Remove `historyOpen` state
-- Replace the raw `previewUrl` dialog with `ImageDetailModal`
-- Track clicked item as `{ type: 'reference' | 'generation', ref?, generation? }` instead of just `previewUrl`
-- Normal-mode click opens `ImageDetailModal` with full context
+### Layout Desktop (2 colunas)
 
-#### 3. No changes to `GenerateBaseAnglesModal.tsx`
-Selection mode, preloading, and generation pipeline stay untouched.
-
-#### 4. Keep `GenerationHistorySection.tsx` file
-Just stop importing it. No deletion needed.
-
-### Grid merge logic
 ```text
-gridItems = [
-  ...activeGenerations.map(g => ({ type: 'generation', generation: g })),
-  ...avatar.references.map(r => ({ type: 'reference', ref: r, generation: matchedGen })),
-  ...failedGenerations.filter(notInRefs).map(g => ({ type: 'generation', generation: g })),
-]
+┌──────────────────────┬──────────────────────┐
+│   REFERÊNCIA         │   VARIAÇÃO           │
+│                      │                      │
+│  [dropzone/preview]  │  [empty/loading/img] │
+│                      │                      │
+│  "Trocar imagem"     │  ações pós-resultado │
+└──────────────────────┴──────────────────────┘
+         [ Gerar Variação ]  (centralizado)
 ```
-Active generations appear first (top of grid). Failed without result appear at end.
 
-Match reference → generation via: find generation where `result_asset_id === ref.asset_id` or generation `reference_asset_id === ref.asset_id`.
+Mobile: stack vertical (referência em cima, resultado embaixo).
 
-### `useAvatarGenerations` update
-Add `result_asset_id` to the select query so we can match generations to reference assets.
+---
 
-### Files affected
-| File | Change |
+### Fluxo de Estados
+
+1. **idle** — dropzone visível à esquerda, empty state à direita
+2. **uploading** — preview local imediato + spinner discreto no canto da imagem + dropzone substituído pela preview
+3. **ready** — upload concluído, botão "Gerar Variação" habilitado, "Trocar imagem" disponível
+4. **generating** — botão desabilitado, placeholder/skeleton animado à direita
+5. **completed** — resultado à direita + ações: "Gerar outra variação", "Criar avatar", "Adicionar a avatar existente"
+6. **error** — mensagem inline na coluna direita, botão "Tentar novamente"
+
+---
+
+### Correção do Payload
+
+O payload atual está errado (`toolType: "quick_generation"`, `pipelineType: "image_to_image"`, `sourceMode: "quick_flow"`). Corrigir para:
+
+```typescript
+{
+  toolType: "quick_similar_image",
+  pipelineType: "multimodal_image_generation",
+  sourceMode: "single_asset",
+  avatarProfileId: null,
+  referenceAssetIds: [uploadedAssetId],
+  supportingAssetIds: [],
+  input: {
+    promptPackId: "ugc-avatar-reference-pack-v1",
+    shotId: "medium_front",
+    geminiPreferredModel: "gemini-3-pro-image-preview",
+  },
+}
+```
+
+---
+
+### Mudanças Específicas (arquivo único: `src/pages/QuickFlow.tsx`)
+
+1. **Remover** botão "Enviar Imagem" separado — upload dispara automaticamente em `handleFileChange`
+2. **Simplificar estados** para: `idle | uploading | ready | generating | tracking`
+3. **Layout 2 colunas**: `grid grid-cols-1 md:grid-cols-2 gap-6`
+4. **Coluna esquerda**: dropzone quando idle, preview + "Trocar imagem" quando tem arquivo
+5. **Coluna direita**: empty state amigável → skeleton durante geração → imagem resultado
+6. **Botão "Gerar Variação"** abaixo do grid, centralizado, habilitado só quando `step === "ready"`
+7. **Ações pós-resultado**: "Gerar outra variação" (reseta generationId, mantém referência), "Criar avatar", "Adicionar a avatar"
+8. **Regeneração**: mantém assetId/assetUrl, só reseta generationId e step para "ready"
+9. **Erro inline**: Alert na coluna direita, nunca blank screen
+10. **Manter** os sub-modais `CreateAvatarFromResultModal` e `AddToAvatarModal` inalterados
+11. **Remover** o `GenerationStatusPanel` pesado — usar polling simples do `useGenerationStatus` para mostrar progress bar inline na coluna direita
+
+---
+
+### Arquivos Afetados
+
+| Arquivo | Mudança |
 |---|---|
-| `src/components/avatar/ImageDetailModal.tsx` | **New** — rich image detail view |
-| `src/pages/AvatarDetails.tsx` | Merge grid, remove history section, use ImageDetailModal |
-| `src/hooks/useAvatarGenerations.ts` | Add `result_asset_id` to select |
+| `src/pages/QuickFlow.tsx` | Reescrita do layout e lógica (único arquivo modificado) |
 
-### Risks
-- If pipeline doesn't add completed results to `avatar_reference_assets`, completed generations would be invisible. Mitigation: also show completed generations without matching reference as grid items.
-- Polling for active generations already exists in `useAvatarGenerations` (3s interval when active). No new polling needed.
+Nenhum outro componente, hook, edge function ou pipeline é alterado.
+
+---
+
+### Riscos e Mitigações
+
+- **Payload incorreto** é a causa raiz do erro atual — corrigido diretamente no `mutationFn`
+- **Upload automático** pode falhar silenciosamente — tratar com toast de erro e retorno ao estado idle
+- **Regeneração** deve preservar o asset original — resetar apenas `generationId`, não `assetId`
+- Nenhum impacto em Avatar Details, NewGenerationModal ou outros fluxos
 
