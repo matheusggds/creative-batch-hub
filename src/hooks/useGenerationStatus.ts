@@ -15,6 +15,7 @@ interface GenerationFull {
   extracted_prompt: string | null;
   ai_parameters: Record<string, unknown>;
   reference_asset_id: string;
+  retry_count: number;
 }
 
 interface GenerationJob {
