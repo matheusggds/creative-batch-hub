@@ -197,6 +197,15 @@ export default function QuickFlow() {
     },
   });
 
+  // "Gerar outra variação": keep same reference, create NEW generation
+  const handleRegenerate = useCallback(() => {
+    setGenerationId(null);
+    setGenError(null);
+    setStep("ready");
+    // Auto-trigger after state reset
+    setTimeout(() => generateMutation.mutate(), 0);
+  }, [generateMutation]);
+
   // Create avatar from result
   const createAvatarMutation = useMutation({
     mutationFn: async (name: string) => {
