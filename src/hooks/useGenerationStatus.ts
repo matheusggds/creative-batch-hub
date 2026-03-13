@@ -96,8 +96,8 @@ export function useGenerationStatus(generationId: string | null, options?: { ski
 
       return {
         generation: gen as GenerationFull,
-        jobs: (jobs ?? []) as GenerationJob[],
-        events: (events ?? []) as GenerationEvent[],
+        jobs,
+        events,
       };
     },
   });

@@ -49,11 +49,19 @@ export default function QuickFlow() {
   const [genError, setGenError] = useState<string | null>(null);
   const [actionModal, setActionModal] = useState<"create" | null>(null);
 
-  const { data: statusData } = useGenerationStatus(generationId);
+  // Snapshot data for terminal states (so we can nullify generationId for the hook)
+  const [snapshotResultUrl, setSnapshotResultUrl] = useState<string | null>(null);
+  const [snapshotRetryCount, setSnapshotRetryCount] = useState(0);
+
+  // Only pass generationId to hook while actively tracking
+  const trackingId = step === "tracking" ? generationId : null;
+  const { data: statusData } = useGenerationStatus(trackingId, { skipDetails: true });
   const genStatus = statusData?.generation.status ?? null;
   const progressPct = statusData?.generation.progress_pct ?? 0;
-  const resultUrl = statusData?.generation.result_url ?? null;
   const currentStepLabel = statusData?.generation.current_step ?? null;
+
+  // Use snapshot for display in completed/error states, live data during tracking
+  const resultUrl = step === "completed" ? snapshotResultUrl : (statusData?.generation.result_url ?? null);
 
   // Track last progress change for stall detection
   const lastProgressRef = useRef<{ pct: number; at: number }>({ pct: 0, at: Date.now() });
