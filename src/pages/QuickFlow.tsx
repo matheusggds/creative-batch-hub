@@ -360,11 +360,17 @@ export default function QuickFlow() {
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Gerando variação…</p>
                 {step === "tracking" && (
-                  <div className="w-3/4">
+                  <div className="w-3/4 space-y-1">
                     <Progress value={progressPct} className="h-2" />
-                    <p className="text-xs text-muted-foreground/60 text-center mt-1">
+                    <p className="text-xs text-muted-foreground/60 text-center">
                       {progressPct}%
+                      {currentStepLabel && ` · ${currentStepLabel}`}
                     </p>
+                    {(statusData?.generation.retry_count ?? 0) > 0 && (
+                      <p className="text-xs text-amber-500 text-center">
+                        Retry #{statusData?.generation.retry_count}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
