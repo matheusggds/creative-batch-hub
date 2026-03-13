@@ -45,7 +45,8 @@ export interface GenerationStatusData {
   events: GenerationEvent[];
 }
 
-export function useGenerationStatus(generationId: string | null) {
+export function useGenerationStatus(generationId: string | null, options?: { skipDetails?: boolean }) {
+  const skipDetails = options?.skipDetails ?? false;
   const qc = useQueryClient();
   const prevStatus = useRef<string | null>(null);
 
