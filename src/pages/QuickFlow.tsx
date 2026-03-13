@@ -96,7 +96,7 @@ export default function QuickFlow() {
     }
 
     if (genStatus === "failed") {
-      setGenError(statusData?.generation.error_code ?? "Erro desconhecido na geração.");
+      setGenError(friendlyError(statusData?.generation.error_code));
       setStep("error");
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
       return;
