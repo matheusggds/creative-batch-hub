@@ -121,6 +121,8 @@ export default function QuickFlow() {
     setGenerationId(null);
     setGenError(null);
     setActionModal(null);
+    setSnapshotResultUrl(null);
+    setSnapshotRetryCount(0);
   }, [preview]);
 
   
