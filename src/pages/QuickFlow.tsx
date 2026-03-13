@@ -380,7 +380,7 @@ export default function QuickFlow() {
                       {currentStepLabel && ` · ${currentStepLabel}`}
                     </p>
                     {(statusData?.generation.retry_count ?? 0) > 0 && (
-                      <p className="text-xs text-warning text-center">
+                      <p className="text-xs text-yellow-500 text-center">
                         Retry #{statusData?.generation.retry_count}
                       </p>
                     )}
