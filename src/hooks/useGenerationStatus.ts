@@ -72,19 +72,27 @@ export function useGenerationStatus(generationId: string | null, options?: { ski
       if (genErr) throw genErr;
       if (!gen) throw new Error("Generation not found");
 
-      const { data: jobs } = await supabase
-        .from("generation_jobs")
-        .select(
-          "id, step, status, provider, model, attempt, max_attempts, created_at, updated_at, error_payload"
-        )
-        .eq("generation_id", generationId!)
-        .order("created_at", { ascending: true });
+      let jobs: GenerationJob[] = [];
+      let events: GenerationEvent[] = [];
 
-      const { data: events } = await supabase
-        .from("generation_events")
-        .select("id, type, message, created_at, job_id")
-        .eq("generation_id", generationId!)
-        .order("created_at", { ascending: true });
+      if (!skipDetails) {
+        const { data: jobsData } = await supabase
+          .from("generation_jobs")
+          .select(
+            "id, step, status, provider, model, attempt, max_attempts, created_at, updated_at, error_payload"
+          )
+          .eq("generation_id", generationId!)
+          .order("created_at", { ascending: true });
+
+        const { data: eventsData } = await supabase
+          .from("generation_events")
+          .select("id, type, message, created_at, job_id")
+          .eq("generation_id", generationId!)
+          .order("created_at", { ascending: true });
+
+        jobs = (jobsData ?? []) as GenerationJob[];
+        events = (eventsData ?? []) as GenerationEvent[];
+      }
 
       return {
         generation: gen as GenerationFull,
