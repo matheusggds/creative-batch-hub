@@ -36,6 +36,22 @@ type Step = "idle" | "uploading" | "ready" | "generating" | "tracking" | "comple
 
 const STALL_TIMEOUT_MS = 120_000; // 2 minutes without progress → stall
 
+const FRIENDLY_ERRORS: Record<string, string> = {
+  openai_missing_positive_prompt:
+    "Não conseguimos montar um prompt válido a partir desta imagem. Tente outra imagem ou gere novamente.",
+  openai_content_policy:
+    "A imagem foi bloqueada pela política de conteúdo. Tente outra imagem.",
+  openai_rate_limit:
+    "Estamos com muitas requisições no momento. Aguarde um instante e tente novamente.",
+  shot_not_found:
+    "Não foi possível encontrar o ângulo solicitado. Tente gerar novamente.",
+};
+
+function friendlyError(code: string | null | undefined): string {
+  if (!code) return "Erro desconhecido na geração.";
+  return FRIENDLY_ERRORS[code] ?? code;
+}
+
 export default function QuickFlow() {
   const { user } = useAuth();
   const qc = useQueryClient();
