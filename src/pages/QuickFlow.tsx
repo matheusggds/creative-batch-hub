@@ -72,6 +72,8 @@ export default function QuickFlow() {
     if (step !== "tracking") return;
 
     if (genStatus === "completed") {
+      setSnapshotResultUrl(statusData?.generation.result_url ?? null);
+      setSnapshotRetryCount(statusData?.generation.retry_count ?? 0);
       setStep("completed");
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
       return;
@@ -83,7 +85,7 @@ export default function QuickFlow() {
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
       return;
     }
-  }, [step, genStatus, statusData?.generation.error_code]);
+  }, [step, genStatus, statusData?.generation.error_code, statusData?.generation.result_url, statusData?.generation.retry_count]);
 
   // Stall detection: if progress doesn't change for STALL_TIMEOUT_MS, show error
   useEffect(() => {
