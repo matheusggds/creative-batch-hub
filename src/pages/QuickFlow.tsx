@@ -1,15 +1,14 @@
 import { useState, useCallback, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useAvatarProfiles } from "@/hooks/useAvatarProfiles";
 import { useGenerationStatus } from "@/hooks/useGenerationStatus";
 import { uploadAssetFile } from "@/lib/storage";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -20,26 +19,20 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Upload,
   Loader2,
   Sparkles,
   UserPlus,
-  UserCheck,
   ImageIcon,
   RefreshCw,
   AlertCircle,
+  Download,
+  RotateCcw,
   ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
-type Step = "idle" | "uploading" | "ready" | "generating" | "tracking";
+type Step = "idle" | "uploading" | "ready" | "generating" | "tracking" | "completed" | "error";
 
 export default function QuickFlow() {
   const { user } = useAuth();
@@ -52,22 +45,20 @@ export default function QuickFlow() {
   const [step, setStep] = useState<Step>("idle");
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
-  const [actionModal, setActionModal] = useState<"create" | "add" | null>(null);
+  const [actionModal, setActionModal] = useState<"create" | null>(null);
 
   const { data: statusData } = useGenerationStatus(generationId);
   const genStatus = statusData?.generation.status ?? null;
   const progressPct = statusData?.generation.progress_pct ?? 0;
   const resultUrl = statusData?.generation.result_url ?? null;
-  const isCompleted = genStatus === "completed";
-  const isFailed = genStatus === "failed";
 
-  // When generation completes or fails, update step
-  if (step === "tracking" && isCompleted) {
-    setStep("ready");
+  // Transition from tracking → completed or error
+  if (step === "tracking" && genStatus === "completed") {
+    setStep("completed");
   }
-  if (step === "tracking" && isFailed) {
+  if (step === "tracking" && genStatus === "failed") {
     setGenError(statusData?.generation.error_code ?? "Erro desconhecido na geração.");
-    setStep("ready");
+    setStep("error");
   }
 
   const resetAll = useCallback(() => {
@@ -84,7 +75,7 @@ export default function QuickFlow() {
   const handleRegenerate = () => {
     setGenerationId(null);
     setGenError(null);
-    // keep assetId/assetUrl/preview, step stays "ready"
+    setStep("ready");
   };
 
   // Auto-upload on file select
@@ -122,13 +113,11 @@ export default function QuickFlow() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    // Show preview immediately
     if (preview) URL.revokeObjectURL(preview);
     setPreview(URL.createObjectURL(f));
     setGenerationId(null);
     setGenError(null);
     setStep("uploading");
-    // Auto-upload in background
     uploadMutation.mutate(f);
   };
 
@@ -136,7 +125,7 @@ export default function QuickFlow() {
     fileInputRef.current?.click();
   };
 
-  // Generate mutation with corrected payload
+  // Generate mutation
   const generateMutation = useMutation({
     mutationFn: async () => {
       if (!assetId) throw new Error("No asset");
@@ -172,8 +161,8 @@ export default function QuickFlow() {
       }
     },
     onError: (err: Error) => {
-      setStep("ready");
       setGenError(err.message || "Erro ao iniciar geração.");
+      setStep("error");
       toast.error("Erro ao iniciar geração.");
     },
   });
@@ -181,7 +170,7 @@ export default function QuickFlow() {
   // Create avatar from result
   const createAvatarMutation = useMutation({
     mutationFn: async (name: string) => {
-      if (!resultUrl) throw new Error("No result");
+      if (!assetId) throw new Error("No asset");
       const { error } = await supabase.functions.invoke(
         "create-avatar-profile",
         {
@@ -202,38 +191,47 @@ export default function QuickFlow() {
     onError: () => toast.error("Erro ao criar avatar."),
   });
 
-  // Add to existing avatar
-  const addToAvatarMutation = useMutation({
-    mutationFn: async (avatarProfileId: string) => {
-      if (!assetId) throw new Error("No asset");
-      const { error } = await supabase
-        .from("avatar_reference_assets")
-        .insert({
-          avatar_profile_id: avatarProfileId,
-          asset_id: assetId,
-        });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Imagem adicionada ao avatar!");
-      qc.invalidateQueries({ queryKey: ["avatar_profile"] });
-      setActionModal(null);
-    },
-    onError: () => toast.error("Erro ao adicionar ao avatar."),
-  });
+  // Download handler
+  const handleDownload = async () => {
+    if (!resultUrl) return;
+    try {
+      const res = await fetch(resultUrl);
+      const blob = await res.blob();
+      const ext = blob.type.includes("png") ? "png" : "jpg";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `variacao.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Erro ao baixar imagem.");
+    }
+  };
 
-  const canGenerate = step === "ready" && !!assetId && !generateMutation.isPending;
+  const showMainButton = step === "ready" || step === "generating" || step === "tracking";
 
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
 
       <main className="container py-8 max-w-5xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Geração Rápida</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Envie uma imagem, gere uma variação e salve como avatar.
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Geração Rápida</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Envie uma imagem, gere uma variação e decida: crie um novo avatar ou apenas baixe o resultado.
+            </p>
+          </div>
+          <Link
+            to="/avatars"
+            className="text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors flex items-center gap-1 mt-1"
+          >
+            Ver avatares
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
 
         {/* Hidden file input for swap */}
@@ -306,19 +304,19 @@ export default function QuickFlow() {
             </h2>
 
             {/* Empty state */}
-            {!generationId && !genError && step !== "generating" && (
+            {(step === "idle" || step === "uploading" || step === "ready") && (
               <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/10 aspect-square">
                 <Sparkles className="h-10 w-10 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground/60 text-center px-4">
-                  {preview
-                    ? "Clique em \"Gerar Variação\" para começar"
-                    : "Selecione uma imagem de referência primeiro"}
+                  {step === "ready"
+                    ? 'Clique em "Gerar Variação" para criar uma variação'
+                    : "Selecione uma imagem de referência para começar"}
                 </p>
               </div>
             )}
 
-            {/* Generating / Tracking skeleton */}
-            {(step === "generating" || step === "tracking") && !isCompleted && !isFailed && (
+            {/* Generating / Tracking */}
+            {(step === "generating" || step === "tracking") && (
               <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-square">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Gerando variação…</p>
@@ -333,97 +331,120 @@ export default function QuickFlow() {
               </div>
             )}
 
-            {/* Result image */}
-            {isCompleted && resultUrl && (
-              <div className="rounded-lg border border-border/50 overflow-hidden">
-                <img
-                  src={resultUrl}
-                  alt="Variação gerada"
-                  className="w-full aspect-square object-cover"
-                />
-              </div>
+            {/* Completed: result image + actions */}
+            {step === "completed" && resultUrl && (
+              <>
+                <div className="rounded-lg border border-border/50 overflow-hidden">
+                  <img
+                    src={resultUrl}
+                    alt="Variação gerada"
+                    className="w-full aspect-square object-cover"
+                  />
+                </div>
+                <div className="space-y-2 pt-1">
+                  <Button
+                    size="sm"
+                    className="w-full gap-2"
+                    onClick={() => setActionModal("create")}
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Criar novo avatar com esta variação
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2"
+                    onClick={handleRegenerate}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Gerar outra variação
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2"
+                    onClick={handleDownload}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Baixar imagem
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full gap-2 text-muted-foreground"
+                    onClick={resetAll}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Recomeçar
+                  </Button>
+                </div>
+              </>
             )}
 
             {/* Error state */}
-            {genError && (
+            {step === "error" && (
               <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-destructive/30 bg-destructive/5 aspect-square p-4">
                 <AlertCircle className="h-10 w-10 text-destructive/60" />
                 <Alert variant="destructive" className="border-0 bg-transparent">
                   <AlertDescription className="text-center text-sm">
-                    {genError}
+                    {genError || "Erro desconhecido."}
                   </AlertDescription>
                 </Alert>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => {
-                    setGenError(null);
-                    generateMutation.mutate();
-                  }}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Tentar novamente
-                </Button>
-              </div>
-            )}
-
-            {/* Post-result actions */}
-            {isCompleted && resultUrl && (
-              <div className="space-y-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full gap-2"
-                  onClick={handleRegenerate}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Gerar outra variação
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full gap-2"
-                  onClick={() => setActionModal("create")}
-                >
-                  <UserPlus className="h-3.5 w-3.5" />
-                  Criar avatar com esta imagem
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full gap-2"
-                  onClick={() => setActionModal("add")}
-                >
-                  <UserCheck className="h-3.5 w-3.5" />
-                  Adicionar a avatar existente
-                </Button>
+                <div className="flex flex-col gap-2 w-full max-w-[200px]">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2"
+                    onClick={() => {
+                      setGenError(null);
+                      setStep("ready");
+                      generateMutation.mutate();
+                    }}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Tentar novamente
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full gap-2 text-muted-foreground"
+                    onClick={handleSwapImage}
+                  >
+                    Trocar imagem
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full gap-2 text-muted-foreground"
+                    onClick={resetAll}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Recomeçar
+                  </Button>
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Generate button */}
-        <div className="flex justify-center gap-3">
-          <Button
-            size="lg"
-            className="gap-2"
-            disabled={!canGenerate}
-            onClick={() => generateMutation.mutate()}
-          >
-            {generateMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            Gerar Variação
-          </Button>
-          {(step !== "idle") && (
-            <Button variant="ghost" size="lg" onClick={resetAll}>
-              Recomeçar
+        {/* Main generate button — only visible in ready/generating/tracking */}
+        {showMainButton && (
+          <div className="flex justify-center">
+            <Button
+              size="lg"
+              className="gap-2"
+              disabled={step !== "ready" || !assetId || generateMutation.isPending}
+              onClick={() => generateMutation.mutate()}
+            >
+              {generateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              Gerar Variação
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </main>
 
       {/* Create Avatar Modal */}
@@ -432,31 +453,26 @@ export default function QuickFlow() {
         onOpenChange={(v) => { if (!v) setActionModal(null); }}
         isPending={createAvatarMutation.isPending}
         onSubmit={(name) => createAvatarMutation.mutate(name)}
-      />
-
-      {/* Add to Avatar Modal */}
-      <AddToAvatarModal
-        open={actionModal === "add"}
-        onOpenChange={(v) => { if (!v) setActionModal(null); }}
-        isPending={addToAvatarMutation.isPending}
-        onSubmit={(avatarId) => addToAvatarMutation.mutate(avatarId)}
+        resultUrl={resultUrl}
       />
     </div>
   );
 }
 
-/* ---------- Sub-modals ---------- */
+/* ---------- Create Avatar Modal ---------- */
 
 function CreateAvatarFromResultModal({
   open,
   onOpenChange,
   isPending,
   onSubmit,
+  resultUrl,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   isPending: boolean;
   onSubmit: (name: string) => void;
+  resultUrl: string | null;
 }) {
   const [name, setName] = useState("");
 
@@ -464,18 +480,32 @@ function CreateAvatarFromResultModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Criar Avatar</DialogTitle>
+          <DialogTitle>Criar avatar a partir da variação</DialogTitle>
         </DialogHeader>
-        <div className="space-y-2 py-2">
-          <Label htmlFor="new-avatar-name">Nome do Avatar</Label>
-          <Input
-            id="new-avatar-name"
-            placeholder="Ex: Maria Look 1"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={isPending}
-            maxLength={100}
-          />
+        <div className="space-y-3 py-2">
+          {resultUrl && (
+            <div className="flex items-center gap-3 rounded-lg border border-border/50 p-2 bg-muted/10">
+              <img
+                src={resultUrl}
+                alt="Variação"
+                className="h-14 w-14 rounded-md object-cover shrink-0"
+              />
+              <p className="text-xs text-muted-foreground">
+                A variação gerada será usada como imagem de referência do novo avatar.
+              </p>
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="new-avatar-name">Nome do Avatar</Label>
+            <Input
+              id="new-avatar-name"
+              placeholder="Ex: Maria Look 1"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={isPending}
+              maxLength={100}
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
@@ -488,76 +518,6 @@ function CreateAvatarFromResultModal({
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Criar
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function AddToAvatarModal({
-  open,
-  onOpenChange,
-  isPending,
-  onSubmit,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  isPending: boolean;
-  onSubmit: (avatarId: string) => void;
-}) {
-  const { data: avatars, isLoading } = useAvatarProfiles();
-  const [selected, setSelected] = useState("");
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Adicionar a Avatar</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-2 py-2">
-          <Label>Selecione um avatar</Label>
-          {isLoading ? (
-            <Skeleton className="h-10 w-full" />
-          ) : avatars && avatars.length > 0 ? (
-            <Select value={selected} onValueChange={setSelected}>
-              <SelectTrigger>
-                <SelectValue placeholder="Escolha um avatar…" />
-              </SelectTrigger>
-              <SelectContent>
-                {avatars.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    <div className="flex items-center gap-2">
-                      {a.cover_url ? (
-                        <img
-                          src={a.cover_url}
-                          alt=""
-                          className="h-5 w-5 rounded object-cover"
-                        />
-                      ) : (
-                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      <span>{a.name}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <p className="text-sm text-muted-foreground">Nenhum avatar encontrado.</p>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
-            Cancelar
-          </Button>
-          <Button
-            disabled={!selected || isPending}
-            onClick={() => onSubmit(selected)}
-            className="gap-2"
-          >
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Adicionar
           </Button>
         </DialogFooter>
       </DialogContent>
