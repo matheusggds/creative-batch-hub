@@ -166,6 +166,8 @@ export default function QuickFlow() {
     setPreview(URL.createObjectURL(f));
     setGenerationId(null);
     setGenError(null);
+    setSnapshotResultUrl(null);
+    setSnapshotRetryCount(0);
     setStep("uploading");
     uploadMutation.mutate(f);
   };
