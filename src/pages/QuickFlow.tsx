@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +34,8 @@ import { toast } from "sonner";
 
 type Step = "idle" | "uploading" | "ready" | "generating" | "tracking" | "completed" | "error";
 
+const STALL_TIMEOUT_MS = 120_000; // 2 minutes without progress → stall
+
 export default function QuickFlow() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -51,15 +53,54 @@ export default function QuickFlow() {
   const genStatus = statusData?.generation.status ?? null;
   const progressPct = statusData?.generation.progress_pct ?? 0;
   const resultUrl = statusData?.generation.result_url ?? null;
+  const currentStepLabel = statusData?.generation.current_step ?? null;
 
-  // Transition from tracking → completed or error
-  if (step === "tracking" && genStatus === "completed") {
-    setStep("completed");
-  }
-  if (step === "tracking" && genStatus === "failed") {
-    setGenError(statusData?.generation.error_code ?? "Erro desconhecido na geração.");
-    setStep("error");
-  }
+  // Track last progress change for stall detection
+  const lastProgressRef = useRef<{ pct: number; at: number }>({ pct: 0, at: Date.now() });
+  const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Transition from tracking → completed or error (in useEffect, not render)
+  useEffect(() => {
+    if (step !== "tracking") return;
+
+    if (genStatus === "completed") {
+      setStep("completed");
+      if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
+      return;
+    }
+
+    if (genStatus === "failed") {
+      setGenError(statusData?.generation.error_code ?? "Erro desconhecido na geração.");
+      setStep("error");
+      if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
+      return;
+    }
+  }, [step, genStatus, statusData?.generation.error_code]);
+
+  // Stall detection: if progress doesn't change for STALL_TIMEOUT_MS, show error
+  useEffect(() => {
+    if (step !== "tracking") {
+      lastProgressRef.current = { pct: 0, at: Date.now() };
+      if (stallTimerRef.current) { clearTimeout(stallTimerRef.current); stallTimerRef.current = null; }
+      return;
+    }
+
+    // Progress changed → reset timer
+    if (progressPct !== lastProgressRef.current.pct) {
+      lastProgressRef.current = { pct: progressPct, at: Date.now() };
+    }
+
+    // Set/reset stall timer
+    if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
+    stallTimerRef.current = setTimeout(() => {
+      if (step === "tracking") {
+        setGenError("A geração parece travada. Tente novamente.");
+        setStep("error");
+      }
+    }, STALL_TIMEOUT_MS);
+
+    return () => { if (stallTimerRef.current) clearTimeout(stallTimerRef.current); };
+  }, [step, progressPct]);
 
   const resetAll = useCallback(() => {
     if (preview) URL.revokeObjectURL(preview);
@@ -72,11 +113,7 @@ export default function QuickFlow() {
     setActionModal(null);
   }, [preview]);
 
-  const handleRegenerate = () => {
-    setGenerationId(null);
-    setGenError(null);
-    setStep("ready");
-  };
+  
 
   // Auto-upload on file select
   const uploadMutation = useMutation({
@@ -159,6 +196,15 @@ export default function QuickFlow() {
       toast.error("Erro ao iniciar geração.");
     },
   });
+
+  // "Gerar outra variação": keep same reference, create NEW generation
+  const handleRegenerate = useCallback(() => {
+    setGenerationId(null);
+    setGenError(null);
+    setStep("ready");
+    // Auto-trigger after state reset
+    setTimeout(() => generateMutation.mutate(), 0);
+  }, [generateMutation]);
 
   // Create avatar from result
   const createAvatarMutation = useMutation({
@@ -314,11 +360,17 @@ export default function QuickFlow() {
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Gerando variação…</p>
                 {step === "tracking" && (
-                  <div className="w-3/4">
+                  <div className="w-3/4 space-y-1">
                     <Progress value={progressPct} className="h-2" />
-                    <p className="text-xs text-muted-foreground/60 text-center mt-1">
+                    <p className="text-xs text-muted-foreground/60 text-center">
                       {progressPct}%
+                      {currentStepLabel && ` · ${currentStepLabel}`}
                     </p>
+                    {(statusData?.generation.retry_count ?? 0) > 0 && (
+                      <p className="text-xs text-warning text-center">
+                        Retry #{statusData?.generation.retry_count}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
