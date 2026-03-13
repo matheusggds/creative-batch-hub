@@ -137,16 +137,9 @@ export default function QuickFlow() {
         {
           body: {
             toolType: "quick_similar_image",
-            pipelineType: "multimodal_image_generation",
+            pipelineType: "text_to_image",
             sourceMode: "single_asset",
-            avatarProfileId: null,
             referenceAssetIds: [assetId],
-            supportingAssetIds: [],
-            input: {
-              promptPackId: "ugc-avatar-reference-pack-v1",
-              shotId: "medium_front",
-              geminiPreferredModel: "gemini-3-pro-image-preview",
-            },
           },
         }
       );
