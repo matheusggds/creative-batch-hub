@@ -113,13 +113,7 @@ export default function QuickFlow() {
     setActionModal(null);
   }, [preview]);
 
-  // "Gerar outra variação": keep same reference, create new generation
-  const handleRegenerate = useCallback(() => {
-    setGenerationId(null);
-    setGenError(null);
-    // Auto-trigger generation immediately (skip "ready" idle state)
-    setTimeout(() => generateMutationRef.current?.(), 0);
-  }, []);
+  // handleRegenerate defined after generateMutation below
 
   // Auto-upload on file select
   const uploadMutation = useMutation({
