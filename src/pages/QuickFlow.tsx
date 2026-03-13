@@ -213,8 +213,9 @@ export default function QuickFlow() {
   const handleRegenerate = useCallback(() => {
     setGenerationId(null);
     setGenError(null);
+    setSnapshotResultUrl(null);
+    setSnapshotRetryCount(0);
     setStep("ready");
-    // Auto-trigger after state reset
     setTimeout(() => generateMutation.mutate(), 0);
   }, [generateMutation]);
 
