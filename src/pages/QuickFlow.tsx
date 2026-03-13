@@ -113,7 +113,7 @@ export default function QuickFlow() {
     setActionModal(null);
   }, [preview]);
 
-  // handleRegenerate defined after generateMutation below
+  
 
   // Auto-upload on file select
   const uploadMutation = useMutation({
