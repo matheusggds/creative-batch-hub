@@ -45,7 +45,8 @@ export interface GenerationStatusData {
   events: GenerationEvent[];
 }
 
-export function useGenerationStatus(generationId: string | null) {
+export function useGenerationStatus(generationId: string | null, options?: { skipDetails?: boolean }) {
+  const skipDetails = options?.skipDetails ?? false;
   const qc = useQueryClient();
   const prevStatus = useRef<string | null>(null);
 
@@ -71,24 +72,32 @@ export function useGenerationStatus(generationId: string | null) {
       if (genErr) throw genErr;
       if (!gen) throw new Error("Generation not found");
 
-      const { data: jobs } = await supabase
-        .from("generation_jobs")
-        .select(
-          "id, step, status, provider, model, attempt, max_attempts, created_at, updated_at, error_payload"
-        )
-        .eq("generation_id", generationId!)
-        .order("created_at", { ascending: true });
+      let jobs: GenerationJob[] = [];
+      let events: GenerationEvent[] = [];
 
-      const { data: events } = await supabase
-        .from("generation_events")
-        .select("id, type, message, created_at, job_id")
-        .eq("generation_id", generationId!)
-        .order("created_at", { ascending: true });
+      if (!skipDetails) {
+        const { data: jobsData } = await supabase
+          .from("generation_jobs")
+          .select(
+            "id, step, status, provider, model, attempt, max_attempts, created_at, updated_at, error_payload"
+          )
+          .eq("generation_id", generationId!)
+          .order("created_at", { ascending: true });
+
+        const { data: eventsData } = await supabase
+          .from("generation_events")
+          .select("id, type, message, created_at, job_id")
+          .eq("generation_id", generationId!)
+          .order("created_at", { ascending: true });
+
+        jobs = (jobsData ?? []) as GenerationJob[];
+        events = (eventsData ?? []) as GenerationEvent[];
+      }
 
       return {
         generation: gen as GenerationFull,
-        jobs: (jobs ?? []) as GenerationJob[],
-        events: (events ?? []) as GenerationEvent[],
+        jobs,
+        events,
       };
     },
   });

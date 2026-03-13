@@ -49,11 +49,19 @@ export default function QuickFlow() {
   const [genError, setGenError] = useState<string | null>(null);
   const [actionModal, setActionModal] = useState<"create" | null>(null);
 
-  const { data: statusData } = useGenerationStatus(generationId);
+  // Snapshot data for terminal states (so we can nullify generationId for the hook)
+  const [snapshotResultUrl, setSnapshotResultUrl] = useState<string | null>(null);
+  const [snapshotRetryCount, setSnapshotRetryCount] = useState(0);
+
+  // Only pass generationId to hook while actively tracking
+  const trackingId = step === "tracking" ? generationId : null;
+  const { data: statusData } = useGenerationStatus(trackingId, { skipDetails: true });
   const genStatus = statusData?.generation.status ?? null;
   const progressPct = statusData?.generation.progress_pct ?? 0;
-  const resultUrl = statusData?.generation.result_url ?? null;
   const currentStepLabel = statusData?.generation.current_step ?? null;
+
+  // Use snapshot for display in completed/error states, live data during tracking
+  const resultUrl = step === "completed" ? snapshotResultUrl : (statusData?.generation.result_url ?? null);
 
   // Track last progress change for stall detection
   const lastProgressRef = useRef<{ pct: number; at: number }>({ pct: 0, at: Date.now() });
@@ -64,6 +72,8 @@ export default function QuickFlow() {
     if (step !== "tracking") return;
 
     if (genStatus === "completed") {
+      setSnapshotResultUrl(statusData?.generation.result_url ?? null);
+      setSnapshotRetryCount(statusData?.generation.retry_count ?? 0);
       setStep("completed");
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
       return;
@@ -75,7 +85,7 @@ export default function QuickFlow() {
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
       return;
     }
-  }, [step, genStatus, statusData?.generation.error_code]);
+  }, [step, genStatus, statusData?.generation.error_code, statusData?.generation.result_url, statusData?.generation.retry_count]);
 
   // Stall detection: if progress doesn't change for STALL_TIMEOUT_MS, show error
   useEffect(() => {
@@ -111,6 +121,8 @@ export default function QuickFlow() {
     setGenerationId(null);
     setGenError(null);
     setActionModal(null);
+    setSnapshotResultUrl(null);
+    setSnapshotRetryCount(0);
   }, [preview]);
 
   
@@ -154,6 +166,8 @@ export default function QuickFlow() {
     setPreview(URL.createObjectURL(f));
     setGenerationId(null);
     setGenError(null);
+    setSnapshotResultUrl(null);
+    setSnapshotRetryCount(0);
     setStep("uploading");
     uploadMutation.mutate(f);
   };
@@ -201,8 +215,9 @@ export default function QuickFlow() {
   const handleRegenerate = useCallback(() => {
     setGenerationId(null);
     setGenError(null);
+    setSnapshotResultUrl(null);
+    setSnapshotRetryCount(0);
     setStep("ready");
-    // Auto-trigger after state reset
     setTimeout(() => generateMutation.mutate(), 0);
   }, [generateMutation]);
 
@@ -367,7 +382,7 @@ export default function QuickFlow() {
                       {currentStepLabel && ` · ${currentStepLabel}`}
                     </p>
                     {(statusData?.generation.retry_count ?? 0) > 0 && (
-                      <p className="text-xs text-warning text-center">
+                      <p className="text-xs text-yellow-500 text-center">
                         Retry #{statusData?.generation.retry_count}
                       </p>
                     )}

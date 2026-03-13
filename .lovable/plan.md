@@ -1,50 +1,63 @@
 
 
-## Quick Flow — Request Leak Fix
+## Plan: Unify Avatar Library with Generation Timeline
 
-### Root Causes Found
+### Summary
+Remove the separate Generation History section. Show in-progress and failed generations as inline cards in the Avatar Library grid. Replace the raw image preview with a rich Image Detail Modal.
 
-**Cause 1: Polling never stops on stall.** When the 2-minute stall timer fires, `step` becomes `"error"` but `generationId` stays set. The hook's `refetchInterval` only checks for DB status `"completed"` or `"failed"` — a stalled generation remains `"pending"` in the DB, so polling returns 3000ms forever. This is the primary leak.
+### Changes
 
-**Cause 2: 3 requests per poll cycle.** Each 3-second poll fires 3 separate queries: `generations`, `generation_jobs`, and `generation_events`. Quick Flow only uses data from `generations` (status, progress_pct, result_url, retry_count, current_step). The jobs and events queries are wasted — they exist for `GenerationStatusPanel` and `GenerationHistorySection` but Quick Flow never renders them.
+#### 1. New component: `src/components/avatar/ImageDetailModal.tsx`
+Rich modal for clicking any image card. Shows:
+- Large image preview (or placeholder for in-progress/error for failed)
+- Status badge, timestamp, shot/angle label
+- Whether image is original reference or generated
+- Reference images used (from `generation_reference_assets` via generation data)
+- Extracted prompt / debug info (collapsible)
+- Generation ID for debugging
+- Actions: "Use as Reference" (future), Close
 
-### Fix Strategy (2 files)
+#### 2. Refactor `src/pages/AvatarDetails.tsx`
+- Import and use `useAvatarGenerations` to get all generations for this avatar
+- Build a unified grid: reference assets + active/failed generation placeholders
+  - Completed generations already appear as references (pipeline adds to `avatar_reference_assets`)
+  - Active generations (pending/processing/queued) → placeholder cards with spinner + progress
+  - Failed generations (no `result_asset_id`) → error cards with inline error state
+- Remove the `Collapsible` + `GenerationHistorySection` import entirely
+- Remove `historyOpen` state
+- Replace the raw `previewUrl` dialog with `ImageDetailModal`
+- Track clicked item as `{ type: 'reference' | 'generation', ref?, generation? }` instead of just `previewUrl`
+- Normal-mode click opens `ImageDetailModal` with full context
 
-**1. QuickFlow.tsx — Disable hook on terminal states**
+#### 3. No changes to `GenerateBaseAnglesModal.tsx`
+Selection mode, preloading, and generation pipeline stay untouched.
 
-- Pass `generationId` to `useGenerationStatus` only when `step === "tracking"`
-- Before transitioning to `completed` or `error`, snapshot the needed data (`resultUrl`, `errorCode`, `retryCount`) into local state
-- This instantly kills all polling on any terminal transition (completed, failed, stall)
-- On `handleRegenerate`/`resetAll`, local snapshots are cleared naturally
+#### 4. Keep `GenerationHistorySection.tsx` file
+Just stop importing it. No deletion needed.
 
-**2. useGenerationStatus.ts — Add lightweight mode**
+### Grid merge logic
+```text
+gridItems = [
+  ...activeGenerations.map(g => ({ type: 'generation', generation: g })),
+  ...avatar.references.map(r => ({ type: 'reference', ref: r, generation: matchedGen })),
+  ...failedGenerations.filter(notInRefs).map(g => ({ type: 'generation', generation: g })),
+]
+```
+Active generations appear first (top of grid). Failed without result appear at end.
 
-- Add an optional `skipDetails` parameter that skips the `generation_jobs` and `generation_events` queries
-- Quick Flow passes `skipDetails: true` → 1 request per poll instead of 3
-- `GenerationStatusPanel` and `GenerationHistorySection` continue working unchanged (they don't pass the flag)
-- Returns empty arrays for `jobs`/`events` when skipped
+Match reference → generation via: find generation where `result_asset_id === ref.asset_id` or generation `reference_asset_id === ref.asset_id`.
 
-### Polling On/Off Conditions (after fix)
+### `useAvatarGenerations` update
+Add `result_asset_id` to the select query so we can match generations to reference assets.
 
-| Condition | Polling |
+### Files affected
+| File | Change |
 |---|---|
-| `generationId === null` | OFF (hook disabled) |
-| `step !== "tracking"` | OFF (null passed to hook) |
-| `step === "tracking"` | ON, 3s interval, 1 request/cycle |
-| DB status → `completed` | OFF (step transitions, generationId nullified for hook) |
-| DB status → `failed` | OFF (same) |
-| Stall timer fires | OFF (same) |
-| Regenerate clicked | Old OFF instantly, new ON after new generationId arrives |
+| `src/components/avatar/ImageDetailModal.tsx` | **New** — rich image detail view |
+| `src/pages/AvatarDetails.tsx` | Merge grid, remove history section, use ImageDetailModal |
+| `src/hooks/useAvatarGenerations.ts` | Add `result_asset_id` to select |
 
-### Request count comparison
-
-- **Before**: 3 requests × every 3s × indefinitely after stall = unbounded
-- **After**: 1 request × every 3s × only during `tracking` step = bounded
-
-### Files changed
-- `src/hooks/useGenerationStatus.ts`
-- `src/pages/QuickFlow.tsx`
-
-### What depends on backend
-Nothing — this is purely a frontend polling/lifecycle fix.
+### Risks
+- If pipeline doesn't add completed results to `avatar_reference_assets`, completed generations would be invisible. Mitigation: also show completed generations without matching reference as grid items.
+- Polling for active generations already exists in `useAvatarGenerations` (3s interval when active). No new polling needed.
 
