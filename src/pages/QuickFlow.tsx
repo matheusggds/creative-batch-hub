@@ -242,17 +242,20 @@ export default function QuickFlow() {
     setTimeout(() => generateMutation.mutate(), 0);
   }, [generateMutation]);
 
-  // Create avatar from result
+  // Create avatar from result (uses generated image as cover + both as references)
   const createAvatarMutation = useMutation({
     mutationFn: async (name: string) => {
-      if (!assetId) throw new Error("No asset");
+      if (!snapshotResultAssetId) {
+        throw new Error("A imagem gerada não foi encontrada. Gere uma nova variação antes de criar o avatar.");
+      }
+      if (!assetId) throw new Error("No reference asset");
       const { error } = await supabase.functions.invoke(
         "create-avatar-profile",
         {
           body: {
             name,
-            referenceAssetIds: [assetId],
-            coverAssetId: assetId,
+            referenceAssetIds: [snapshotResultAssetId, assetId],
+            coverAssetId: snapshotResultAssetId,
           },
         }
       );
