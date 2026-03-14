@@ -239,16 +239,18 @@ export default function QuickFlow() {
     },
   });
 
-  // "Gerar outra variação": keep same reference, create NEW generation
+  // "Gerar outra variação": reuse prompt from completed generation
   const handleRegenerate = useCallback(() => {
+    const reuseId = snapshotGenerationId;
     setGenerationId(null);
     setGenError(null);
     setSnapshotResultUrl(null);
     setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
+    setSnapshotGenerationId(null);
     setStep("ready");
-    setTimeout(() => generateMutation.mutate(), 0);
-  }, [generateMutation]);
+    setTimeout(() => generateMutation.mutate(reuseId ?? undefined), 0);
+  }, [generateMutation, snapshotGenerationId]);
 
   // Create avatar from result (uses generated image as cover + both as references)
   const createAvatarMutation = useMutation({
