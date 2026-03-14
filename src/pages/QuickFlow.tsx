@@ -67,6 +67,7 @@ export default function QuickFlow() {
 
   // Snapshot data for terminal states (so we can nullify generationId for the hook)
   const [snapshotResultUrl, setSnapshotResultUrl] = useState<string | null>(null);
+  const [snapshotResultAssetId, setSnapshotResultAssetId] = useState<string | null>(null);
   const [snapshotRetryCount, setSnapshotRetryCount] = useState(0);
 
   // Only pass generationId to hook while actively tracking
@@ -89,6 +90,7 @@ export default function QuickFlow() {
 
     if (genStatus === "completed") {
       setSnapshotResultUrl(statusData?.generation.result_url ?? null);
+      setSnapshotResultAssetId(statusData?.generation.result_asset_id ?? null);
       setSnapshotRetryCount(statusData?.generation.retry_count ?? 0);
       setStep("completed");
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
@@ -138,6 +140,7 @@ export default function QuickFlow() {
     setGenError(null);
     setActionModal(null);
     setSnapshotResultUrl(null);
+    setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
   }, [preview]);
 
@@ -183,6 +186,7 @@ export default function QuickFlow() {
     setGenerationId(null);
     setGenError(null);
     setSnapshotResultUrl(null);
+    setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
     setStep("uploading");
     uploadMutation.mutate(f);
@@ -232,22 +236,26 @@ export default function QuickFlow() {
     setGenerationId(null);
     setGenError(null);
     setSnapshotResultUrl(null);
+    setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
     setStep("ready");
     setTimeout(() => generateMutation.mutate(), 0);
   }, [generateMutation]);
 
-  // Create avatar from result
+  // Create avatar from result (uses generated image as cover + both as references)
   const createAvatarMutation = useMutation({
     mutationFn: async (name: string) => {
-      if (!assetId) throw new Error("No asset");
+      if (!snapshotResultAssetId) {
+        throw new Error("A imagem gerada não foi encontrada. Gere uma nova variação antes de criar o avatar.");
+      }
+      if (!assetId) throw new Error("No reference asset");
       const { error } = await supabase.functions.invoke(
         "create-avatar-profile",
         {
           body: {
             name,
-            referenceAssetIds: [assetId],
-            coverAssetId: assetId,
+            referenceAssetIds: [snapshotResultAssetId, assetId],
+            coverAssetId: snapshotResultAssetId,
           },
         }
       );
