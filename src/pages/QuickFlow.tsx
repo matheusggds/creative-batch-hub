@@ -528,7 +528,7 @@ export default function QuickFlow() {
               size="lg"
               className="gap-2"
               disabled={step !== "ready" || !assetId || generateMutation.isPending}
-              onClick={() => generateMutation.mutate()}
+              onClick={() => generateMutation.mutate(undefined)}
             >
               {generateMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
