@@ -90,6 +90,7 @@ export default function QuickFlow() {
 
     if (genStatus === "completed") {
       setSnapshotResultUrl(statusData?.generation.result_url ?? null);
+      setSnapshotResultAssetId(statusData?.generation.result_asset_id ?? null);
       setSnapshotRetryCount(statusData?.generation.retry_count ?? 0);
       setStep("completed");
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
