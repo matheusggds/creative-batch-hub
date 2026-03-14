@@ -65,7 +65,7 @@ export function useGenerationStatus(generationId: string | null, options?: { ski
       const { data: gen, error: genErr } = await supabase
         .from("generations")
         .select(
-          "id, status, current_step, progress_pct, result_url, error_code, created_at, started_at, finished_at, extracted_prompt, ai_parameters, reference_asset_id, retry_count"
+          "id, status, current_step, progress_pct, result_url, result_asset_id, error_code, created_at, started_at, finished_at, extracted_prompt, ai_parameters, reference_asset_id, retry_count"
         )
         .eq("id", generationId!)
         .maybeSingle();
