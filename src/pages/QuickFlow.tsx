@@ -191,6 +191,7 @@ export default function QuickFlow() {
     setSnapshotResultUrl(null);
     setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
+    setSnapshotGenerationId(null);
     setStep("uploading");
     uploadMutation.mutate(f);
   };
