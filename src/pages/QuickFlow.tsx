@@ -69,6 +69,7 @@ export default function QuickFlow() {
   const [snapshotResultUrl, setSnapshotResultUrl] = useState<string | null>(null);
   const [snapshotResultAssetId, setSnapshotResultAssetId] = useState<string | null>(null);
   const [snapshotRetryCount, setSnapshotRetryCount] = useState(0);
+  const [snapshotGenerationId, setSnapshotGenerationId] = useState<string | null>(null);
 
   // Only pass generationId to hook while actively tracking
   const trackingId = step === "tracking" ? generationId : null;
