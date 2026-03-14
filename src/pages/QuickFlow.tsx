@@ -200,23 +200,27 @@ export default function QuickFlow() {
     fileInputRef.current?.click();
   };
 
-  // Generate mutation
+  // Generate mutation (supports optional prompt reuse)
   const generateMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (reuseFromId?: string) => {
       if (!assetId) throw new Error("No asset");
       setGenError(null);
       setStep("generating");
 
+      const body: Record<string, unknown> = {
+        toolType: "quick_similar_image",
+        pipelineType: "text_to_image",
+        sourceMode: "single_asset",
+        referenceAssetIds: [assetId],
+      };
+
+      if (reuseFromId) {
+        body.reusePromptFromGenerationId = reuseFromId;
+      }
+
       const { data, error } = await supabase.functions.invoke(
         "create-generation",
-        {
-          body: {
-            toolType: "quick_similar_image",
-            pipelineType: "text_to_image",
-            sourceMode: "single_asset",
-            referenceAssetIds: [assetId],
-          },
-        }
+        { body }
       );
 
       if (error) throw error;
