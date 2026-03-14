@@ -69,6 +69,7 @@ export default function QuickFlow() {
   const [snapshotResultUrl, setSnapshotResultUrl] = useState<string | null>(null);
   const [snapshotResultAssetId, setSnapshotResultAssetId] = useState<string | null>(null);
   const [snapshotRetryCount, setSnapshotRetryCount] = useState(0);
+  const [snapshotGenerationId, setSnapshotGenerationId] = useState<string | null>(null);
 
   // Only pass generationId to hook while actively tracking
   const trackingId = step === "tracking" ? generationId : null;
@@ -92,6 +93,7 @@ export default function QuickFlow() {
       setSnapshotResultUrl(statusData?.generation.result_url ?? null);
       setSnapshotResultAssetId(statusData?.generation.result_asset_id ?? null);
       setSnapshotRetryCount(statusData?.generation.retry_count ?? 0);
+      setSnapshotGenerationId(generationId);
       setStep("completed");
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
       return;
@@ -142,6 +144,7 @@ export default function QuickFlow() {
     setSnapshotResultUrl(null);
     setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
+    setSnapshotGenerationId(null);
   }, [preview]);
 
   
@@ -188,6 +191,7 @@ export default function QuickFlow() {
     setSnapshotResultUrl(null);
     setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
+    setSnapshotGenerationId(null);
     setStep("uploading");
     uploadMutation.mutate(f);
   };
@@ -196,23 +200,27 @@ export default function QuickFlow() {
     fileInputRef.current?.click();
   };
 
-  // Generate mutation
+  // Generate mutation (supports optional prompt reuse)
   const generateMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (reuseFromId?: string) => {
       if (!assetId) throw new Error("No asset");
       setGenError(null);
       setStep("generating");
 
+      const body: Record<string, unknown> = {
+        toolType: "quick_similar_image",
+        pipelineType: "text_to_image",
+        sourceMode: "single_asset",
+        referenceAssetIds: [assetId],
+      };
+
+      if (reuseFromId) {
+        body.reusePromptFromGenerationId = reuseFromId;
+      }
+
       const { data, error } = await supabase.functions.invoke(
         "create-generation",
-        {
-          body: {
-            toolType: "quick_similar_image",
-            pipelineType: "text_to_image",
-            sourceMode: "single_asset",
-            referenceAssetIds: [assetId],
-          },
-        }
+        { body }
       );
 
       if (error) throw error;
@@ -231,16 +239,18 @@ export default function QuickFlow() {
     },
   });
 
-  // "Gerar outra variação": keep same reference, create NEW generation
+  // "Gerar outra variação": reuse prompt from completed generation
   const handleRegenerate = useCallback(() => {
+    const reuseId = snapshotGenerationId;
     setGenerationId(null);
     setGenError(null);
     setSnapshotResultUrl(null);
     setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
+    setSnapshotGenerationId(null);
     setStep("ready");
-    setTimeout(() => generateMutation.mutate(), 0);
-  }, [generateMutation]);
+    setTimeout(() => generateMutation.mutate(reuseId ?? undefined), 0);
+  }, [generateMutation, snapshotGenerationId]);
 
   // Create avatar from result (uses generated image as cover + both as references)
   const createAvatarMutation = useMutation({
@@ -482,7 +492,7 @@ export default function QuickFlow() {
                     onClick={() => {
                       setGenError(null);
                       setStep("ready");
-                      generateMutation.mutate();
+                      generateMutation.mutate(undefined);
                     }}
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
@@ -518,7 +528,7 @@ export default function QuickFlow() {
               size="lg"
               className="gap-2"
               disabled={step !== "ready" || !assetId || generateMutation.isPending}
-              onClick={() => generateMutation.mutate()}
+              onClick={() => generateMutation.mutate(undefined)}
             >
               {generateMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
