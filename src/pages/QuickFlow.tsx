@@ -140,6 +140,7 @@ export default function QuickFlow() {
     setGenError(null);
     setActionModal(null);
     setSnapshotResultUrl(null);
+    setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
   }, [preview]);
 
