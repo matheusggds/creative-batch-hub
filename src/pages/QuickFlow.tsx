@@ -492,7 +492,7 @@ export default function QuickFlow() {
                     onClick={() => {
                       setGenError(null);
                       setStep("ready");
-                      generateMutation.mutate();
+                      generateMutation.mutate(undefined);
                     }}
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
