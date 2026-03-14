@@ -67,6 +67,7 @@ export default function QuickFlow() {
 
   // Snapshot data for terminal states (so we can nullify generationId for the hook)
   const [snapshotResultUrl, setSnapshotResultUrl] = useState<string | null>(null);
+  const [snapshotResultAssetId, setSnapshotResultAssetId] = useState<string | null>(null);
   const [snapshotRetryCount, setSnapshotRetryCount] = useState(0);
 
   // Only pass generationId to hook while actively tracking
