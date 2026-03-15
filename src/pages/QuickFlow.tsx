@@ -215,7 +215,7 @@ export default function QuickFlow() {
       };
 
       if (reuseFromId) {
-        body.reusePromptFromGenerationId = reuseFromId;
+        body.input = { reusePromptFromGenerationId: reuseFromId };
       }
 
       const { data, error } = await supabase.functions.invoke(
