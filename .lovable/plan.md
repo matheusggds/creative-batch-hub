@@ -1,63 +1,68 @@
 
 
-## Plan: Unify Avatar Library with Generation Timeline
+## Session Variations History for Quick Flow
 
-### Summary
-Remove the separate Generation History section. Show in-progress and failed generations as inline cards in the Avatar Library grid. Replace the raw image preview with a rich Image Detail Modal.
+### What changes
 
-### Changes
+**Single file**: `src/pages/QuickFlow.tsx`
 
-#### 1. New component: `src/components/avatar/ImageDetailModal.tsx`
-Rich modal for clicking any image card. Shows:
-- Large image preview (or placeholder for in-progress/error for failed)
-- Status badge, timestamp, shot/angle label
-- Whether image is original reference or generated
-- Reference images used (from `generation_reference_assets` via generation data)
-- Extracted prompt / debug info (collapsible)
-- Generation ID for debugging
-- Actions: "Use as Reference" (future), Close
+### Data model (in-memory only)
 
-#### 2. Refactor `src/pages/AvatarDetails.tsx`
-- Import and use `useAvatarGenerations` to get all generations for this avatar
-- Build a unified grid: reference assets + active/failed generation placeholders
-  - Completed generations already appear as references (pipeline adds to `avatar_reference_assets`)
-  - Active generations (pending/processing/queued) → placeholder cards with spinner + progress
-  - Failed generations (no `result_asset_id`) → error cards with inline error state
-- Remove the `Collapsible` + `GenerationHistorySection` import entirely
-- Remove `historyOpen` state
-- Replace the raw `previewUrl` dialog with `ImageDetailModal`
-- Track clicked item as `{ type: 'reference' | 'generation', ref?, generation? }` instead of just `previewUrl`
-- Normal-mode click opens `ImageDetailModal` with full context
+A `sessionVariations` array of `{ resultUrl, resultAssetId, generationId }` stored in React state. A `selectedIndex` tracks which variation is active. No persistence — cleared on reset/swap.
 
-#### 3. No changes to `GenerateBaseAnglesModal.tsx`
-Selection mode, preloading, and generation pipeline stay untouched.
+### UI addition
 
-#### 4. Keep `GenerationHistorySection.tsx` file
-Just stop importing it. No deletion needed.
+Below the main result image on the right column, a horizontal strip of thumbnails appears when `sessionVariations.length > 1`. Each thumbnail is a small clickable image (48×48) with a ring highlight on the selected one. Minimal footprint — no carousel, no pagination, just a `flex gap-2 overflow-x-auto` row.
 
-### Grid merge logic
+### State flow
+
+1. **On generation completed**: push `{ resultUrl, resultAssetId, generationId }` into `sessionVariations`, set `selectedIndex` to last item
+2. **On thumbnail click**: update `selectedIndex` — this updates `snapshotResultUrl`, `snapshotResultAssetId`, `snapshotGenerationId` to match the selected variation
+3. **"Gerar outra variação"**: reuses prompt from `selectedVariation.generationId` (any completed generation works as source), new result appends to array
+4. **"Criar novo avatar"**: uses `selectedVariation.resultAssetId` as cover
+5. **"Baixar imagem"**: downloads `selectedVariation.resultUrl`
+6. **`resetAll` / `handleFileChange`**: clears `sessionVariations` and `selectedIndex`
+
+### Concrete changes
+
+- Add `sessionVariations` state (`Array<{ resultUrl: string; resultAssetId: string; generationId: string }>`) and `selectedVarIndex` state (`number`)
+- On completed transition (line ~92-100): push to array, set index to new last element, set snapshots from that element
+- On thumbnail click: update index + snapshots
+- `handleRegenerate`: read `generationId` from `sessionVariations[selectedVarIndex]` instead of `snapshotGenerationId`
+- `createAvatarMutation`: read `resultAssetId` from `sessionVariations[selectedVarIndex]`
+- `handleDownload`: read `resultUrl` from `sessionVariations[selectedVarIndex]`
+- `resetAll` / `handleFileChange`: clear array + index
+- Remove standalone `snapshotResultUrl`, `snapshotResultAssetId`, `snapshotGenerationId` — replaced by the array + index
+- Keep `snapshotRetryCount` as-is (display-only during tracking)
+- Render thumbnail strip between result image and CTAs when `sessionVariations.length > 1`
+
+### Thumbnail strip UI
+
 ```text
-gridItems = [
-  ...activeGenerations.map(g => ({ type: 'generation', generation: g })),
-  ...avatar.references.map(r => ({ type: 'reference', ref: r, generation: matchedGen })),
-  ...failedGenerations.filter(notInRefs).map(g => ({ type: 'generation', generation: g })),
-]
+┌─────────────────────────────────┐
+│  [result image - active var]    │
+├─────────────────────────────────┤
+│  [■] [■] [■]  ← 48px thumbs    │
+├─────────────────────────────────┤
+│  [Criar avatar]                 │
+│  [Gerar outra variação]         │
+│  [Baixar imagem]                │
+│  [Recomeçar]                    │
+└─────────────────────────────────┘
 ```
-Active generations appear first (top of grid). Failed without result appear at end.
 
-Match reference → generation via: find generation where `result_asset_id === ref.asset_id` or generation `reference_asset_id === ref.asset_id`.
+### What gets cleared
 
-### `useAvatarGenerations` update
-Add `result_asset_id` to the select query so we can match generations to reference assets.
-
-### Files affected
-| File | Change |
+| Action | Clears variations? |
 |---|---|
-| `src/components/avatar/ImageDetailModal.tsx` | **New** — rich image detail view |
-| `src/pages/AvatarDetails.tsx` | Merge grid, remove history section, use ImageDetailModal |
-| `src/hooks/useAvatarGenerations.ts` | Add `result_asset_id` to select |
+| Trocar imagem | Yes |
+| Recomeçar | Yes |
+| Gerar outra variação | No (appends) |
+| Thumbnail click | No (selects) |
 
-### Risks
-- If pipeline doesn't add completed results to `avatar_reference_assets`, completed generations would be invisible. Mitigation: also show completed generations without matching reference as grid items.
-- Polling for active generations already exists in `useAvatarGenerations` (3s interval when active). No new polling needed.
+### Files changed
+- `src/pages/QuickFlow.tsx`
+
+### What depends on backend
+Nothing — purely frontend session state.
 
