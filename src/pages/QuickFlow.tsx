@@ -31,10 +31,17 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type Step = "idle" | "uploading" | "ready" | "generating" | "tracking" | "completed" | "error";
 
-const STALL_TIMEOUT_MS = 120_000; // 2 minutes without progress → stall
+interface SessionVariation {
+  resultUrl: string;
+  resultAssetId: string;
+  generationId: string;
+}
+
+const STALL_TIMEOUT_MS = 120_000;
 
 const FRIENDLY_ERRORS: Record<string, string> = {
   openai_missing_positive_prompt:
@@ -65,11 +72,18 @@ export default function QuickFlow() {
   const [genError, setGenError] = useState<string | null>(null);
   const [actionModal, setActionModal] = useState<"create" | null>(null);
 
-  // Snapshot data for terminal states (so we can nullify generationId for the hook)
-  const [snapshotResultUrl, setSnapshotResultUrl] = useState<string | null>(null);
-  const [snapshotResultAssetId, setSnapshotResultAssetId] = useState<string | null>(null);
+  // Session variations history (in-memory only)
+  const [sessionVariations, setSessionVariations] = useState<SessionVariation[]>([]);
+  const [selectedVarIndex, setSelectedVarIndex] = useState<number>(-1);
+
+  // Display-only retry count during tracking
   const [snapshotRetryCount, setSnapshotRetryCount] = useState(0);
-  const [snapshotGenerationId, setSnapshotGenerationId] = useState<string | null>(null);
+
+  // Active variation derived from array + index
+  const activeVar: SessionVariation | null =
+    selectedVarIndex >= 0 && selectedVarIndex < sessionVariations.length
+      ? sessionVariations[selectedVarIndex]
+      : null;
 
   // Only pass generationId to hook while actively tracking
   const trackingId = step === "tracking" ? generationId : null;
@@ -78,22 +92,29 @@ export default function QuickFlow() {
   const progressPct = statusData?.generation.progress_pct ?? 0;
   const currentStepLabel = statusData?.generation.current_step ?? null;
 
-  // Use snapshot for display in completed/error states, live data during tracking
-  const resultUrl = step === "completed" ? snapshotResultUrl : (statusData?.generation.result_url ?? null);
+  // Result URL: active variation in completed, live data during tracking
+  const resultUrl = step === "completed" ? (activeVar?.resultUrl ?? null) : (statusData?.generation.result_url ?? null);
 
   // Track last progress change for stall detection
   const lastProgressRef = useRef<{ pct: number; at: number }>({ pct: 0, at: Date.now() });
   const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Transition from tracking → completed or error (in useEffect, not render)
+  // Transition from tracking → completed or error
   useEffect(() => {
     if (step !== "tracking") return;
 
     if (genStatus === "completed") {
-      setSnapshotResultUrl(statusData?.generation.result_url ?? null);
-      setSnapshotResultAssetId(statusData?.generation.result_asset_id ?? null);
+      const newVar: SessionVariation = {
+        resultUrl: statusData?.generation.result_url ?? "",
+        resultAssetId: statusData?.generation.result_asset_id ?? "",
+        generationId: generationId ?? "",
+      };
+      setSessionVariations((prev) => {
+        const next = [...prev, newVar];
+        setSelectedVarIndex(next.length - 1);
+        return next;
+      });
       setSnapshotRetryCount(statusData?.generation.retry_count ?? 0);
-      setSnapshotGenerationId(generationId);
       setStep("completed");
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
       return;
@@ -105,9 +126,9 @@ export default function QuickFlow() {
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
       return;
     }
-  }, [step, genStatus, statusData?.generation.error_code, statusData?.generation.result_url, statusData?.generation.retry_count]);
+  }, [step, genStatus, statusData?.generation.error_code, statusData?.generation.result_url, statusData?.generation.retry_count, statusData?.generation.result_asset_id, generationId]);
 
-  // Stall detection: if progress doesn't change for STALL_TIMEOUT_MS, show error
+  // Stall detection
   useEffect(() => {
     if (step !== "tracking") {
       lastProgressRef.current = { pct: 0, at: Date.now() };
@@ -115,12 +136,10 @@ export default function QuickFlow() {
       return;
     }
 
-    // Progress changed → reset timer
     if (progressPct !== lastProgressRef.current.pct) {
       lastProgressRef.current = { pct: progressPct, at: Date.now() };
     }
 
-    // Set/reset stall timer
     if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
     stallTimerRef.current = setTimeout(() => {
       if (step === "tracking") {
@@ -141,13 +160,10 @@ export default function QuickFlow() {
     setGenerationId(null);
     setGenError(null);
     setActionModal(null);
-    setSnapshotResultUrl(null);
-    setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
-    setSnapshotGenerationId(null);
+    setSessionVariations([]);
+    setSelectedVarIndex(-1);
   }, [preview]);
-
-  
 
   // Auto-upload on file select
   const uploadMutation = useMutation({
@@ -188,10 +204,9 @@ export default function QuickFlow() {
     setPreview(URL.createObjectURL(f));
     setGenerationId(null);
     setGenError(null);
-    setSnapshotResultUrl(null);
-    setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
-    setSnapshotGenerationId(null);
+    setSessionVariations([]);
+    setSelectedVarIndex(-1);
     setStep("uploading");
     uploadMutation.mutate(f);
   };
@@ -239,23 +254,26 @@ export default function QuickFlow() {
     },
   });
 
-  // "Gerar outra variação": reuse prompt from completed generation
+  // "Gerar outra variação": reuse prompt from active variation
   const handleRegenerate = useCallback(() => {
-    const reuseId = snapshotGenerationId;
+    const reuseId = activeVar?.generationId;
     setGenerationId(null);
     setGenError(null);
-    setSnapshotResultUrl(null);
-    setSnapshotResultAssetId(null);
     setSnapshotRetryCount(0);
-    setSnapshotGenerationId(null);
+    // Don't clear sessionVariations — new result will append
     setStep("ready");
     setTimeout(() => generateMutation.mutate(reuseId ?? undefined), 0);
-  }, [generateMutation, snapshotGenerationId]);
+  }, [generateMutation, activeVar]);
 
-  // Create avatar from result (uses generated image as cover + both as references)
+  // Select a variation from the thumbnail strip
+  const handleSelectVariation = useCallback((index: number) => {
+    setSelectedVarIndex(index);
+  }, []);
+
+  // Create avatar from active variation
   const createAvatarMutation = useMutation({
     mutationFn: async (name: string) => {
-      if (!snapshotResultAssetId) {
+      if (!activeVar?.resultAssetId) {
         throw new Error("A imagem gerada não foi encontrada. Gere uma nova variação antes de criar o avatar.");
       }
       if (!assetId) throw new Error("No reference asset");
@@ -264,8 +282,8 @@ export default function QuickFlow() {
         {
           body: {
             name,
-            referenceAssetIds: [snapshotResultAssetId, assetId],
-            coverAssetId: snapshotResultAssetId,
+            referenceAssetIds: [activeVar.resultAssetId, assetId],
+            coverAssetId: activeVar.resultAssetId,
           },
         }
       );
@@ -279,21 +297,22 @@ export default function QuickFlow() {
     onError: () => toast.error("Erro ao criar avatar."),
   });
 
-  // Download handler
+  // Download handler — uses active variation
   const handleDownload = async () => {
-    if (!resultUrl) return;
+    const url = activeVar?.resultUrl;
+    if (!url) return;
     try {
-      const res = await fetch(resultUrl);
+      const res = await fetch(url);
       const blob = await res.blob();
       const ext = blob.type.includes("png") ? "png" : "jpg";
-      const url = URL.createObjectURL(blob);
+      const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
+      a.href = blobUrl;
       a.download = `variacao.${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(blobUrl);
     } catch {
       toast.error("Erro ao baixar imagem.");
     }
@@ -425,7 +444,7 @@ export default function QuickFlow() {
               </div>
             )}
 
-            {/* Completed: result image + actions */}
+            {/* Completed: result image + thumbnail strip + actions */}
             {step === "completed" && resultUrl && (
               <>
                 <div className="rounded-lg border border-border/50 overflow-hidden">
@@ -435,6 +454,31 @@ export default function QuickFlow() {
                     className="w-full aspect-square object-cover"
                   />
                 </div>
+
+                {/* Thumbnail strip — only when 2+ variations */}
+                {sessionVariations.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto py-1 px-0.5">
+                    {sessionVariations.map((v, i) => (
+                      <button
+                        key={v.generationId}
+                        onClick={() => handleSelectVariation(i)}
+                        className={cn(
+                          "shrink-0 h-12 w-12 rounded-md overflow-hidden border-2 transition-all hover:opacity-90",
+                          i === selectedVarIndex
+                            ? "border-primary ring-1 ring-primary/50"
+                            : "border-border/50 opacity-70 hover:border-border"
+                        )}
+                      >
+                        <img
+                          src={v.resultUrl}
+                          alt={`Variação ${i + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <div className="space-y-2 pt-1">
                   <Button
                     size="sm"
