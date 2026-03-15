@@ -23,12 +23,12 @@ import {
   Loader2,
   Sparkles,
   UserPlus,
-  ImageIcon,
   RefreshCw,
   AlertCircle,
   Download,
   RotateCcw,
   ArrowRight,
+  Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -36,9 +36,11 @@ import { cn } from "@/lib/utils";
 type Step = "idle" | "uploading" | "ready" | "generating" | "tracking" | "completed" | "error";
 
 interface SessionVariation {
-  resultUrl: string;
-  resultAssetId: string;
   generationId: string;
+  status: "pending" | "completed" | "error";
+  resultUrl?: string;
+  resultAssetId?: string;
+  errorMessage?: string;
 }
 
 const STALL_TIMEOUT_MS = 120_000;
@@ -68,7 +70,6 @@ export default function QuickFlow() {
   const [assetId, setAssetId] = useState<string | null>(null);
   const [assetUrl, setAssetUrl] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("idle");
-  const [generationId, setGenerationId] = useState<string | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
   const [actionModal, setActionModal] = useState<"create" | null>(null);
 
@@ -76,8 +77,8 @@ export default function QuickFlow() {
   const [sessionVariations, setSessionVariations] = useState<SessionVariation[]>([]);
   const [selectedVarIndex, setSelectedVarIndex] = useState<number>(-1);
 
-  // Display-only retry count during tracking
-  const [snapshotRetryCount, setSnapshotRetryCount] = useState(0);
+  // Single tracking id for the first generation (no batch)
+  const [singleTrackingId, setSingleTrackingId] = useState<string | null>(null);
 
   // Active variation derived from array + index
   const activeVar: SessionVariation | null =
@@ -85,36 +86,58 @@ export default function QuickFlow() {
       ? sessionVariations[selectedVarIndex]
       : null;
 
-  // Only pass generationId to hook while actively tracking
-  const trackingId = step === "tracking" ? generationId : null;
+  // Count pending variations
+  const pendingCount = sessionVariations.filter((v) => v.status === "pending").length;
+  const completedVars = sessionVariations.filter((v) => v.status === "completed");
+
+  // Single generation tracking (first generation only, no batch)
+  const trackingId = step === "tracking" ? singleTrackingId : null;
   const { data: statusData } = useGenerationStatus(trackingId, { skipDetails: true });
   const genStatus = statusData?.generation.status ?? null;
   const progressPct = statusData?.generation.progress_pct ?? 0;
   const currentStepLabel = statusData?.generation.current_step ?? null;
 
-  // Result URL: active variation in completed, live data during tracking
-  const resultUrl = step === "completed" ? (activeVar?.resultUrl ?? null) : (statusData?.generation.result_url ?? null);
+  // Result URL: active variation in completed, live data during single tracking
+  const resultUrl =
+    step === "completed"
+      ? activeVar?.resultUrl ?? null
+      : statusData?.generation.result_url ?? null;
 
-  // Track last progress change for stall detection
+  // Stall detection
   const lastProgressRef = useRef<{ pct: number; at: number }>({ pct: 0, at: Date.now() });
   const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Transition from tracking → completed or error
+  // Transition from single tracking → completed or error
   useEffect(() => {
-    if (step !== "tracking") return;
+    if (step !== "tracking" || !singleTrackingId) return;
+    // Only handle single tracking (non-batch) — batch uses VariationTracker
+    if (pendingCount > 0 && !singleTrackingId) return;
 
     if (genStatus === "completed") {
       const newVar: SessionVariation = {
+        generationId: singleTrackingId,
+        status: "completed",
         resultUrl: statusData?.generation.result_url ?? "",
         resultAssetId: statusData?.generation.result_asset_id ?? "",
-        generationId: generationId ?? "",
       };
       setSessionVariations((prev) => {
-        const next = [...prev, newVar];
-        setSelectedVarIndex(next.length - 1);
-        return next;
+        // Replace placeholder if exists, otherwise append
+        const idx = prev.findIndex((v) => v.generationId === singleTrackingId);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = newVar;
+          return next;
+        }
+        return [...prev, newVar];
       });
-      setSnapshotRetryCount(statusData?.generation.retry_count ?? 0);
+      setSingleTrackingId(null);
+      // Auto-select this variation
+      setSessionVariations((prev) => {
+        const idx = prev.findIndex((v) => v.generationId === singleTrackingId);
+        if (idx >= 0) setSelectedVarIndex(idx);
+        else setSelectedVarIndex(prev.length - 1);
+        return prev;
+      });
       setStep("completed");
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
       return;
@@ -122,24 +145,23 @@ export default function QuickFlow() {
 
     if (genStatus === "failed") {
       setGenError(friendlyError(statusData?.generation.error_code));
+      setSingleTrackingId(null);
       setStep("error");
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
       return;
     }
-  }, [step, genStatus, statusData?.generation.error_code, statusData?.generation.result_url, statusData?.generation.retry_count, statusData?.generation.result_asset_id, generationId]);
+  }, [step, genStatus, singleTrackingId, statusData, pendingCount]);
 
-  // Stall detection
+  // Stall detection for single tracking
   useEffect(() => {
     if (step !== "tracking") {
       lastProgressRef.current = { pct: 0, at: Date.now() };
       if (stallTimerRef.current) { clearTimeout(stallTimerRef.current); stallTimerRef.current = null; }
       return;
     }
-
     if (progressPct !== lastProgressRef.current.pct) {
       lastProgressRef.current = { pct: progressPct, at: Date.now() };
     }
-
     if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
     stallTimerRef.current = setTimeout(() => {
       if (step === "tracking") {
@@ -147,9 +169,66 @@ export default function QuickFlow() {
         setStep("error");
       }
     }, STALL_TIMEOUT_MS);
-
     return () => { if (stallTimerRef.current) clearTimeout(stallTimerRef.current); };
   }, [step, progressPct]);
+
+  // Handle batch variation completion callback
+  const handleVariationComplete = useCallback(
+    (generationId: string, resultUrl: string, resultAssetId: string) => {
+      setSessionVariations((prev) => {
+        const next = prev.map((v) =>
+          v.generationId === generationId
+            ? { ...v, status: "completed" as const, resultUrl, resultAssetId }
+            : v
+        );
+        // Auto-select first completed if nothing selected yet or current selection is pending
+        const completedIdx = next.findIndex(
+          (v) => v.generationId === generationId
+        );
+        return next;
+      });
+
+      // Check if all pending are now done
+      setSessionVariations((prev) => {
+        const stillPending = prev.filter((v) => v.status === "pending").length;
+        if (stillPending === 0 && step === "tracking") {
+          // Find first completed to select
+          const firstCompleted = prev.findIndex((v) => v.status === "completed");
+          if (firstCompleted >= 0 && (selectedVarIndex < 0 || prev[selectedVarIndex]?.status !== "completed")) {
+            setSelectedVarIndex(firstCompleted);
+          }
+          setStep("completed");
+        }
+        return prev;
+      });
+    },
+    [step, selectedVarIndex]
+  );
+
+  const handleVariationError = useCallback(
+    (generationId: string, errorCode: string | null) => {
+      setSessionVariations((prev) => {
+        const next = prev.map((v) =>
+          v.generationId === generationId
+            ? { ...v, status: "error" as const, errorMessage: friendlyError(errorCode) }
+            : v
+        );
+        const stillPending = next.filter((v) => v.status === "pending").length;
+        if (stillPending === 0 && step === "tracking") {
+          const firstCompleted = next.findIndex((v) => v.status === "completed");
+          if (firstCompleted >= 0) {
+            setSelectedVarIndex(firstCompleted);
+            setStep("completed");
+          } else {
+            setGenError("Todas as variações falharam.");
+            setStep("error");
+          }
+        }
+        return next;
+      });
+    },
+    [step]
+  );
 
   const resetAll = useCallback(() => {
     if (preview) URL.revokeObjectURL(preview);
@@ -157,10 +236,9 @@ export default function QuickFlow() {
     setAssetId(null);
     setAssetUrl(null);
     setStep("idle");
-    setGenerationId(null);
+    setSingleTrackingId(null);
     setGenError(null);
     setActionModal(null);
-    setSnapshotRetryCount(0);
     setSessionVariations([]);
     setSelectedVarIndex(-1);
   }, [preview]);
@@ -172,12 +250,7 @@ export default function QuickFlow() {
       const fileUrl = await uploadAssetFile(user.id, file);
       const { data: asset, error } = await supabase
         .from("assets")
-        .insert({
-          user_id: user.id,
-          type: "reference",
-          file_url: fileUrl,
-          name: file.name,
-        })
+        .insert({ user_id: user.id, type: "reference", file_url: fileUrl, name: file.name })
         .select("id, file_url")
         .single();
       if (error) throw error;
@@ -202,22 +275,25 @@ export default function QuickFlow() {
     if (!f) return;
     if (preview) URL.revokeObjectURL(preview);
     setPreview(URL.createObjectURL(f));
-    setGenerationId(null);
+    setSingleTrackingId(null);
     setGenError(null);
-    setSnapshotRetryCount(0);
     setSessionVariations([]);
     setSelectedVarIndex(-1);
     setStep("uploading");
     uploadMutation.mutate(f);
   };
 
-  const handleSwapImage = () => {
-    fileInputRef.current?.click();
-  };
+  const handleSwapImage = () => fileInputRef.current?.click();
 
-  // Generate mutation (supports optional prompt reuse)
+  // Generate mutation — supports variationCount
   const generateMutation = useMutation({
-    mutationFn: async (reuseFromId?: string) => {
+    mutationFn: async ({
+      reuseFromId,
+      variationCount,
+    }: {
+      reuseFromId?: string;
+      variationCount?: number;
+    }) => {
       if (!assetId) throw new Error("No asset");
       setGenError(null);
       setStep("generating");
@@ -229,23 +305,41 @@ export default function QuickFlow() {
         referenceAssetIds: [assetId],
       };
 
-      if (reuseFromId) {
-        body.input = { reusePromptFromGenerationId: reuseFromId };
-      }
+      const input: Record<string, unknown> = {};
+      if (reuseFromId) input.reusePromptFromGenerationId = reuseFromId;
+      if (variationCount && variationCount > 1) input.variationCount = variationCount;
+      if (Object.keys(input).length > 0) body.input = input;
 
-      const { data, error } = await supabase.functions.invoke(
-        "create-generation",
-        { body }
-      );
-
+      const { data, error } = await supabase.functions.invoke("create-generation", { body });
       if (error) throw error;
-      return data as { generationId?: string };
+      return data as { generationId?: string; generationIds?: string[] };
     },
-    onSuccess: (data) => {
-      if (data?.generationId) {
-        setGenerationId(data.generationId);
-        setStep("tracking");
+    onSuccess: (data, variables) => {
+      // Normalize response — handle both single and batch
+      const ids: string[] = data?.generationIds ?? (data?.generationId ? [data.generationId] : []);
+
+      if (ids.length === 0) {
+        setGenError("Nenhuma geração foi criada.");
+        setStep("error");
+        return;
       }
+
+      if (ids.length === 1 && !(variables.variationCount && variables.variationCount > 1)) {
+        // Single generation — use the existing single tracking path
+        setSingleTrackingId(ids[0]);
+        setStep("tracking");
+        return;
+      }
+
+      // Batch — add pending entries and let VariationTrackers handle completion
+      const newVars: SessionVariation[] = ids.map((id) => ({
+        generationId: id,
+        status: "pending" as const,
+      }));
+
+      setSessionVariations((prev) => [...prev, ...newVars]);
+      setSingleTrackingId(null);
+      setStep("tracking");
     },
     onError: (err: Error) => {
       setGenError(err.message || "Erro ao iniciar geração.");
@@ -254,39 +348,42 @@ export default function QuickFlow() {
     },
   });
 
-  // "Gerar outra variação": reuse prompt from active variation
+  // "Gerar outra variação": reuse prompt, single
   const handleRegenerate = useCallback(() => {
     const reuseId = activeVar?.generationId;
-    setGenerationId(null);
+    setSingleTrackingId(null);
     setGenError(null);
-    setSnapshotRetryCount(0);
-    // Don't clear sessionVariations — new result will append
     setStep("ready");
-    setTimeout(() => generateMutation.mutate(reuseId ?? undefined), 0);
+    setTimeout(() => generateMutation.mutate({ reuseFromId: reuseId ?? undefined, variationCount: 1 }), 0);
   }, [generateMutation, activeVar]);
 
-  // Select a variation from the thumbnail strip
+  // "Gerar 5 variações": reuse prompt, batch
+  const handleGenerateBatch = useCallback(() => {
+    const reuseId = activeVar?.generationId;
+    if (!reuseId) return;
+    setSingleTrackingId(null);
+    setGenError(null);
+    setStep("ready");
+    setTimeout(() => generateMutation.mutate({ reuseFromId: reuseId, variationCount: 5 }), 0);
+  }, [generateMutation, activeVar]);
+
   const handleSelectVariation = useCallback((index: number) => {
-    setSelectedVarIndex(index);
-  }, []);
+    const v = sessionVariations[index];
+    if (v?.status === "completed") setSelectedVarIndex(index);
+  }, [sessionVariations]);
 
   // Create avatar from active variation
   const createAvatarMutation = useMutation({
     mutationFn: async (name: string) => {
-      if (!activeVar?.resultAssetId) {
-        throw new Error("A imagem gerada não foi encontrada. Gere uma nova variação antes de criar o avatar.");
-      }
+      if (!activeVar?.resultAssetId) throw new Error("Imagem não encontrada.");
       if (!assetId) throw new Error("No reference asset");
-      const { error } = await supabase.functions.invoke(
-        "create-avatar-profile",
-        {
-          body: {
-            name,
-            referenceAssetIds: [activeVar.resultAssetId, assetId],
-            coverAssetId: activeVar.resultAssetId,
-          },
-        }
-      );
+      const { error } = await supabase.functions.invoke("create-avatar-profile", {
+        body: {
+          name,
+          referenceAssetIds: [activeVar.resultAssetId, assetId],
+          coverAssetId: activeVar.resultAssetId,
+        },
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -297,7 +394,6 @@ export default function QuickFlow() {
     onError: () => toast.error("Erro ao criar avatar."),
   });
 
-  // Download handler — uses active variation
   const handleDownload = async () => {
     const url = activeVar?.resultUrl;
     if (!url) return;
@@ -318,7 +414,13 @@ export default function QuickFlow() {
     }
   };
 
-  const showMainButton = step === "ready" || step === "generating" || step === "tracking";
+  const showMainButton = step === "ready" || step === "generating" || (step === "tracking" && !!singleTrackingId);
+  const hasCompletedSource = completedVars.length > 0;
+
+  // Pending variation IDs for batch tracking
+  const pendingVariationIds = sessionVariations
+    .filter((v) => v.status === "pending")
+    .map((v) => v.generationId);
 
   return (
     <div className="min-h-screen bg-background">
@@ -341,7 +443,6 @@ export default function QuickFlow() {
           </Link>
         </div>
 
-        {/* Hidden file input for swap */}
         <input
           ref={fileInputRef}
           type="file"
@@ -350,7 +451,6 @@ export default function QuickFlow() {
           onChange={handleFileChange}
         />
 
-        {/* 2-column grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* LEFT: Reference */}
           <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
@@ -378,11 +478,7 @@ export default function QuickFlow() {
               </label>
             ) : (
               <div className="relative rounded-lg border border-border/50 overflow-hidden">
-                <img
-                  src={preview}
-                  alt="Referência"
-                  className="w-full aspect-square object-cover"
-                />
+                <img src={preview} alt="Referência" className="w-full aspect-square object-cover" />
                 {step === "uploading" && (
                   <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -392,12 +488,7 @@ export default function QuickFlow() {
             )}
 
             {preview && step !== "uploading" && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full gap-2"
-                onClick={handleSwapImage}
-              >
+              <Button variant="ghost" size="sm" className="w-full gap-2" onClick={handleSwapImage}>
                 <RefreshCw className="h-3.5 w-3.5" />
                 Trocar imagem
               </Button>
@@ -411,7 +502,7 @@ export default function QuickFlow() {
             </h2>
 
             {/* Empty state */}
-            {(step === "idle" || step === "uploading" || step === "ready") && (
+            {(step === "idle" || step === "uploading" || step === "ready") && !hasCompletedSource && (
               <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/10 aspect-square">
                 <Sparkles className="h-10 w-10 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground/60 text-center px-4">
@@ -422,8 +513,8 @@ export default function QuickFlow() {
               </div>
             )}
 
-            {/* Generating / Tracking */}
-            {(step === "generating" || step === "tracking") && (
+            {/* Single generation tracking */}
+            {(step === "generating" || (step === "tracking" && !!singleTrackingId)) && (
               <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-square">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Gerando variação…</p>
@@ -431,16 +522,35 @@ export default function QuickFlow() {
                   <div className="w-3/4 space-y-1">
                     <Progress value={progressPct} className="h-2" />
                     <p className="text-xs text-muted-foreground/60 text-center">
-                      {progressPct}%
-                      {currentStepLabel && ` · ${currentStepLabel}`}
+                      {progressPct}%{currentStepLabel && ` · ${currentStepLabel}`}
                     </p>
-                    {(statusData?.generation.retry_count ?? 0) > 0 && (
-                      <p className="text-xs text-yellow-500 text-center">
-                        Retry #{statusData?.generation.retry_count}
-                      </p>
-                    )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Batch tracking — show result area with thumbnails updating live */}
+            {step === "tracking" && !singleTrackingId && pendingCount > 0 && (
+              <div className="space-y-3">
+                {/* Show active completed var or a loading placeholder */}
+                {activeVar?.status === "completed" && activeVar.resultUrl ? (
+                  <div className="rounded-lg border border-border/50 overflow-hidden">
+                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full aspect-square object-cover" />
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-square">
+                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">
+                      Gerando {pendingCount} variação{pendingCount > 1 ? "ões" : ""}…
+                    </p>
+                  </div>
+                )}
+                {/* Live thumbnail strip during batch */}
+                <VariationThumbnailStrip
+                  variations={sessionVariations}
+                  selectedIndex={selectedVarIndex}
+                  onSelect={handleSelectVariation}
+                />
               </div>
             )}
 
@@ -448,52 +558,21 @@ export default function QuickFlow() {
             {step === "completed" && resultUrl && (
               <>
                 <div className="rounded-lg border border-border/50 overflow-hidden">
-                  <img
-                    src={resultUrl}
-                    alt="Variação gerada"
-                    className="w-full aspect-square object-cover"
-                  />
+                  <img src={resultUrl} alt="Variação gerada" className="w-full aspect-square object-cover" />
                 </div>
 
-                {/* Thumbnail strip — only when 2+ variations */}
-                {sessionVariations.length > 1 && (
-                  <div className="flex gap-2 overflow-x-auto py-1 px-0.5">
-                    {sessionVariations.map((v, i) => (
-                      <button
-                        key={v.generationId}
-                        onClick={() => handleSelectVariation(i)}
-                        className={cn(
-                          "shrink-0 h-12 w-12 rounded-md overflow-hidden border-2 transition-all hover:opacity-90",
-                          i === selectedVarIndex
-                            ? "border-primary ring-1 ring-primary/50"
-                            : "border-border/50 opacity-70 hover:border-border"
-                        )}
-                      >
-                        <img
-                          src={v.resultUrl}
-                          alt={`Variação ${i + 1}`}
-                          className="h-full w-full object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <VariationThumbnailStrip
+                  variations={sessionVariations}
+                  selectedIndex={selectedVarIndex}
+                  onSelect={handleSelectVariation}
+                />
 
                 <div className="space-y-2 pt-1">
-                  <Button
-                    size="sm"
-                    className="w-full gap-2"
-                    onClick={() => setActionModal("create")}
-                  >
+                  <Button size="sm" className="w-full gap-2" onClick={() => setActionModal("create")}>
                     <UserPlus className="h-3.5 w-3.5" />
                     Criar novo avatar com esta variação
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-2"
-                    onClick={handleRegenerate}
-                  >
+                  <Button variant="outline" size="sm" className="w-full gap-2" onClick={handleRegenerate}>
                     <RefreshCw className="h-3.5 w-3.5" />
                     Gerar outra variação
                   </Button>
@@ -501,17 +580,16 @@ export default function QuickFlow() {
                     variant="outline"
                     size="sm"
                     className="w-full gap-2"
-                    onClick={handleDownload}
+                    onClick={handleGenerateBatch}
                   >
+                    <Layers className="h-3.5 w-3.5" />
+                    Gerar 5 variações
+                  </Button>
+                  <Button variant="outline" size="sm" className="w-full gap-2" onClick={handleDownload}>
                     <Download className="h-3.5 w-3.5" />
                     Baixar imagem
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full gap-2 text-muted-foreground"
-                    onClick={resetAll}
-                  >
+                  <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground" onClick={resetAll}>
                     <RotateCcw className="h-3.5 w-3.5" />
                     Recomeçar
                   </Button>
@@ -536,26 +614,16 @@ export default function QuickFlow() {
                     onClick={() => {
                       setGenError(null);
                       setStep("ready");
-                      generateMutation.mutate(undefined);
+                      generateMutation.mutate({ variationCount: undefined });
                     }}
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                     Tentar novamente
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full gap-2 text-muted-foreground"
-                    onClick={handleSwapImage}
-                  >
+                  <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground" onClick={handleSwapImage}>
                     Trocar imagem
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full gap-2 text-muted-foreground"
-                    onClick={resetAll}
-                  >
+                  <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground" onClick={resetAll}>
                     <RotateCcw className="h-3.5 w-3.5" />
                     Recomeçar
                   </Button>
@@ -565,14 +633,14 @@ export default function QuickFlow() {
           </div>
         </div>
 
-        {/* Main generate button — only visible in ready/generating/tracking */}
-        {showMainButton && (
+        {/* Main generate button */}
+        {showMainButton && !hasCompletedSource && (
           <div className="flex justify-center">
             <Button
               size="lg"
               className="gap-2"
               disabled={step !== "ready" || !assetId || generateMutation.isPending}
-              onClick={() => generateMutation.mutate(undefined)}
+              onClick={() => generateMutation.mutate({ variationCount: undefined })}
             >
               {generateMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -585,6 +653,16 @@ export default function QuickFlow() {
         )}
       </main>
 
+      {/* Headless batch trackers */}
+      {pendingVariationIds.map((id) => (
+        <VariationTracker
+          key={id}
+          generationId={id}
+          onComplete={handleVariationComplete}
+          onError={handleVariationError}
+        />
+      ))}
+
       {/* Create Avatar Modal */}
       <CreateAvatarFromResultModal
         open={actionModal === "create"}
@@ -593,6 +671,87 @@ export default function QuickFlow() {
         onSubmit={(name) => createAvatarMutation.mutate(name)}
         resultUrl={resultUrl}
       />
+    </div>
+  );
+}
+
+/* ---------- Headless Variation Tracker ---------- */
+
+function VariationTracker({
+  generationId,
+  onComplete,
+  onError,
+}: {
+  generationId: string;
+  onComplete: (id: string, resultUrl: string, resultAssetId: string) => void;
+  onError: (id: string, errorCode: string | null) => void;
+}) {
+  const { data } = useGenerationStatus(generationId, { skipDetails: true });
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (firedRef.current || !data) return;
+    if (data.generation.status === "completed") {
+      firedRef.current = true;
+      onComplete(
+        generationId,
+        data.generation.result_url ?? "",
+        data.generation.result_asset_id ?? ""
+      );
+    } else if (data.generation.status === "failed") {
+      firedRef.current = true;
+      onError(generationId, data.generation.error_code);
+    }
+  }, [data, generationId, onComplete, onError]);
+
+  return null;
+}
+
+/* ---------- Variation Thumbnail Strip ---------- */
+
+function VariationThumbnailStrip({
+  variations,
+  selectedIndex,
+  onSelect,
+}: {
+  variations: SessionVariation[];
+  selectedIndex: number;
+  onSelect: (index: number) => void;
+}) {
+  if (variations.length <= 1) return null;
+
+  return (
+    <div className="flex gap-2 overflow-x-auto py-1 px-0.5">
+      {variations.map((v, i) => (
+        <button
+          key={v.generationId}
+          onClick={() => onSelect(i)}
+          disabled={v.status !== "completed"}
+          className={cn(
+            "shrink-0 h-12 w-12 rounded-md overflow-hidden border-2 transition-all relative",
+            v.status === "completed" && i === selectedIndex
+              ? "border-primary ring-1 ring-primary/50"
+              : v.status === "completed"
+              ? "border-border/50 opacity-70 hover:border-border hover:opacity-90"
+              : "border-border/30 opacity-50"
+          )}
+        >
+          {v.status === "completed" && v.resultUrl ? (
+            <img src={v.resultUrl} alt={`Variação ${i + 1}`} className="h-full w-full object-cover" />
+          ) : v.status === "pending" ? (
+            <div className="h-full w-full flex items-center justify-center bg-muted/20">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="h-full w-full flex items-center justify-center bg-destructive/10">
+              <AlertCircle className="h-4 w-4 text-destructive/60" />
+            </div>
+          )}
+          <span className="absolute bottom-0 right-0 text-[9px] bg-background/80 px-0.5 rounded-tl text-muted-foreground">
+            {i + 1}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -623,11 +782,7 @@ function CreateAvatarFromResultModal({
         <div className="space-y-3 py-2">
           {resultUrl && (
             <div className="flex items-center gap-3 rounded-lg border border-border/50 p-2 bg-muted/10">
-              <img
-                src={resultUrl}
-                alt="Variação"
-                className="h-14 w-14 rounded-md object-cover shrink-0"
-              />
+              <img src={resultUrl} alt="Variação" className="h-14 w-14 rounded-md object-cover shrink-0" />
               <p className="text-xs text-muted-foreground">
                 A variação gerada será usada como imagem de referência do novo avatar.
               </p>
@@ -649,11 +804,7 @@ function CreateAvatarFromResultModal({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancelar
           </Button>
-          <Button
-            disabled={!name.trim() || isPending}
-            onClick={() => onSubmit(name.trim())}
-            className="gap-2"
-          >
+          <Button disabled={!name.trim() || isPending} onClick={() => onSubmit(name.trim())} className="gap-2">
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Criar
           </Button>
