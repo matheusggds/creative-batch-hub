@@ -126,6 +126,11 @@ export default function QuickFlow() {
   // Count pending variations
   const pendingCount = sessionVariations.filter((v) => v.status === "pending").length;
   const completedVars = sessionVariations.filter((v) => v.status === "completed");
+  const selectedCompletedVar =
+    activeVar?.status === "completed" ? activeVar : completedVars[0] ?? null;
+  const hasCompletedSource = completedVars.length > 0;
+  const hasGenerationInProgress =
+    generateMutation.isPending || step === "generating" || step === "tracking";
 
   // Single generation tracking (first generation only, no batch)
   const trackingId = step === "tracking" ? singleTrackingId : null;
@@ -133,10 +138,10 @@ export default function QuickFlow() {
   const genStatus = statusData?.generation.status ?? null;
   const progressPct = statusData?.generation.progress_pct ?? 0;
 
-  // Result URL: active variation in completed, live data during single tracking
+  // Result URL: selected completed variation, or live data during first generation
   const resultUrl =
     step === "completed"
-      ? activeVar?.resultUrl ?? null
+      ? selectedCompletedVar?.resultUrl ?? null
       : statusData?.generation.result_url ?? null;
 
   // Stall detection
