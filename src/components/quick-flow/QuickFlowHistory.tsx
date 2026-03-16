@@ -32,7 +32,7 @@ export function QuickFlowHistory({
           fetchNextPage();
         }
       },
-      { threshold: 0.1 }
+      { rootMargin: "0px 0px 200px 0px", threshold: 0 }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -104,7 +104,7 @@ function SessionCard({
       onClick={onClick}
       className="group rounded-lg border border-border/50 bg-card overflow-hidden hover:border-primary/50 transition-all text-left"
     >
-      <div className="relative w-full" style={{ paddingBottom: "100%" }}>
+      <div className="relative w-full" style={{ paddingBottom: "177.78%" }}>
         <div className="absolute inset-0 flex">
           {/* Left half: reference */}
           <div className="w-1/2 h-full overflow-hidden">
@@ -114,7 +114,7 @@ function SessionCard({
                 alt="Referência"
                 className="h-full w-full object-cover"
                 width={80}
-                height={80}
+                height={142}
                 loading="lazy"
               />
             ) : (
@@ -129,7 +129,7 @@ function SessionCard({
                 alt="Variação"
                 className="h-full w-full object-cover"
                 width={80}
-                height={80}
+                height={142}
                 loading="lazy"
               />
             ) : (
@@ -137,7 +137,6 @@ function SessionCard({
             )}
           </div>
         </div>
-        {/* Hover overlay */}
         <div className="absolute inset-0 bg-background/0 group-hover:bg-background/20 transition-colors" />
       </div>
       <div className="px-2 py-1.5">

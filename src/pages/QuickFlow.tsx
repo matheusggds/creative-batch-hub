@@ -540,7 +540,7 @@ export default function QuickFlow() {
             {!preview ? (
               <label
                 htmlFor="quick-file-input"
-                className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border hover:border-primary/50 bg-muted/20 cursor-pointer aspect-square transition-colors"
+                className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border hover:border-primary/50 bg-muted/20 cursor-pointer aspect-[9/16] transition-colors"
               >
                 <Upload className="h-10 w-10 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground text-center px-4">
@@ -556,8 +556,8 @@ export default function QuickFlow() {
                 />
               </label>
             ) : (
-              <div className="relative rounded-lg border border-border/50 overflow-hidden">
-                <img src={preview} alt="Referência" className="w-full aspect-square object-cover" />
+              <div className="relative rounded-lg border border-border/50 overflow-hidden bg-muted/10">
+                <img src={preview} alt="Referência" className="w-full aspect-[9/16] object-contain" />
                 {step === "uploading" && (
                   <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -582,7 +582,7 @@ export default function QuickFlow() {
 
             {/* Empty state */}
             {(step === "idle" || step === "uploading" || step === "ready") && !hasCompletedSource && (
-              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/10 aspect-square">
+              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/10 aspect-[9/16]">
                 <Sparkles className="h-10 w-10 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground/60 text-center px-4">
                   {step === "ready"
@@ -594,7 +594,7 @@ export default function QuickFlow() {
 
             {/* Single generation tracking */}
             {(step === "generating" || (step === "tracking" && !!singleTrackingId)) && (
-              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-square">
+              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-[9/16]">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Gerando variação…</p>
                 {step === "tracking" && (
@@ -612,11 +612,11 @@ export default function QuickFlow() {
             {step === "tracking" && !singleTrackingId && pendingCount > 0 && (
               <div className="space-y-3">
                 {activeVar?.status === "completed" && activeVar.resultUrl ? (
-                  <div className="rounded-lg border border-border/50 overflow-hidden">
-                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full aspect-square object-cover" />
+                  <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10">
+                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full aspect-[9/16] object-contain" />
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-square">
+                  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-[9/16]">
                     <Loader2 className="h-10 w-10 animate-spin text-primary" />
                     <p className="text-sm text-muted-foreground">
                       Gerando {pendingCount} variação{pendingCount > 1 ? "ões" : ""}…
@@ -634,8 +634,8 @@ export default function QuickFlow() {
             {/* Completed: result image + thumbnail strip + quantity selector + actions */}
             {step === "completed" && resultUrl && (
               <>
-                <div className="rounded-lg border border-border/50 overflow-hidden">
-                  <img src={resultUrl} alt="Variação gerada" className="w-full aspect-square object-cover" />
+                <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10">
+                  <img src={resultUrl} alt="Variação gerada" className="w-full aspect-[9/16] object-contain" />
                 </div>
 
                 <VariationThumbnailStrip
@@ -701,7 +701,7 @@ export default function QuickFlow() {
 
             {/* Error state */}
             {step === "error" && (
-              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-destructive/30 bg-destructive/5 aspect-square p-4">
+              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-destructive/30 bg-destructive/5 aspect-[9/16] p-4">
                 <AlertCircle className="h-10 w-10 text-destructive/60" />
                 <Alert variant="destructive" className="border-0 bg-transparent">
                   <AlertDescription className="text-center text-sm">
@@ -870,7 +870,7 @@ function VariationThumbnailStrip({
           )}
         >
           {v.status === "completed" && v.resultUrl ? (
-            <img src={v.resultUrl} alt={`Variação ${i + 1}`} className="h-full w-full object-cover" />
+            <img src={v.resultUrl} alt={`Variação ${i + 1}`} className="h-full w-full object-cover" loading="lazy" width={48} height={48} />
           ) : v.status === "pending" ? (
             <div className="h-full w-full flex items-center justify-center bg-muted/20">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
