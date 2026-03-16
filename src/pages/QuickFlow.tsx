@@ -294,6 +294,7 @@ export default function QuickFlow() {
     setSingleTrackingId(null);
     setGenError(null);
     setActionModal(null);
+    setDetailsOpen(false);
     setSessionVariations([]);
     setSelectedVarIndex(-1);
     setSelectedCount(1);
