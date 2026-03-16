@@ -4,8 +4,10 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useGenerationStatus } from "@/hooks/useGenerationStatus";
+import { useQuickFlowHistory, type HistorySession } from "@/hooks/useQuickFlowHistory";
 import { uploadAssetFile } from "@/lib/storage";
 import { AppHeader } from "@/components/AppHeader";
+import { QuickFlowHistory } from "@/components/quick-flow/QuickFlowHistory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +20,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Upload,
   Loader2,
