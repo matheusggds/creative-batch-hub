@@ -418,6 +418,58 @@ export default function QuickFlow() {
     onError: () => toast.error("Erro ao criar avatar."),
   });
 
+  // History hook — excludes the currently active reference asset
+  const {
+    sessions: historySessions,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: historyLoading,
+  } = useQuickFlowHistory(assetId);
+
+  // Restore a session from history
+  const applyRestore = useCallback(
+    (session: HistorySession) => {
+      if (preview) URL.revokeObjectURL(preview);
+      setPreview(session.referenceUrl);
+      setAssetId(session.referenceAssetId);
+      setAssetUrl(session.referenceUrl);
+      setSingleTrackingId(null);
+      setGenError(null);
+      setSelectedCount(1);
+      setPendingRestore(null);
+
+      const vars: SessionVariation[] = session.variations.map((v) => ({
+        generationId: v.generationId,
+        status: "completed" as const,
+        resultUrl: v.resultUrl,
+        resultAssetId: v.resultAssetId,
+      }));
+      setSessionVariations(vars);
+      setSelectedVarIndex(vars.length > 0 ? 0 : -1);
+      setStep("completed");
+
+      // Invalidate history so it re-fetches (the restored session will now be excluded)
+      qc.invalidateQueries({ queryKey: ["quick_flow_history"] });
+    },
+    [preview, qc]
+  );
+
+  const handleRestore = useCallback(
+    (session: HistorySession) => {
+      if (preview && step !== "idle") {
+        setPendingRestore(session);
+        return;
+      }
+      applyRestore(session);
+    },
+    [preview, step, applyRestore]
+  );
+
+  const confirmRestore = useCallback(() => {
+    if (pendingRestore) applyRestore(pendingRestore);
+  }, [pendingRestore, applyRestore]);
+
   const handleDownload = async () => {
     const url = activeVar?.resultUrl;
     if (!url) return;
