@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -38,7 +39,6 @@ import {
   RefreshCw,
   AlertCircle,
   Download,
-  RotateCcw,
   ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -94,6 +94,9 @@ export default function QuickFlow() {
   const [step, setStep] = useState<Step>("idle");
   const [genError, setGenError] = useState<string | null>(null);
   const [actionModal, setActionModal] = useState<"create" | null>(null);
+
+  // Lightbox state
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   // Session variations history (in-memory only)
   const [sessionVariations, setSessionVariations] = useState<SessionVariation[]>([]);
@@ -335,20 +338,14 @@ export default function QuickFlow() {
       return data as Record<string, unknown>;
     },
     onSuccess: (data, variables) => {
-      // Parse response — backend returns { generations: [{ generationId }] } for batch
-      // or { generationId } for single
       let ids: string[] = [];
-
-      // Try batch format: { generations: [{ generationId }, ...] }
       const gens = data?.generations as Array<{ generationId?: string }> | undefined;
       if (Array.isArray(gens) && gens.length > 0) {
         ids = gens.map((g) => g.generationId).filter(Boolean) as string[];
       }
-      // Fallback: single format { generationId }
       if (ids.length === 0 && data?.generationId) {
         ids = [data.generationId as string];
       }
-      // Legacy fallback: { generationIds: [...] }
       if (ids.length === 0 && Array.isArray(data?.generationIds)) {
         ids = data.generationIds as string[];
       }
@@ -360,13 +357,11 @@ export default function QuickFlow() {
       }
 
       if (ids.length === 1 && !(variables.variationCount && variables.variationCount > 1)) {
-        // Single generation — use the existing single tracking path
         setSingleTrackingId(ids[0]);
         setStep("tracking");
         return;
       }
 
-      // Batch — add pending entries and let VariationTrackers handle completion
       const newVars: SessionVariation[] = ids.map((id) => ({
         generationId: id,
         status: "pending" as const,
@@ -421,7 +416,7 @@ export default function QuickFlow() {
     onError: () => toast.error("Erro ao criar avatar."),
   });
 
-  // History hook — excludes the currently active reference asset
+  // History hook
   const {
     sessions: historySessions,
     fetchNextPage,
@@ -452,7 +447,6 @@ export default function QuickFlow() {
       setSelectedVarIndex(vars.length > 0 ? 0 : -1);
       setStep("completed");
 
-      // Invalidate history so it re-fetches (the restored session will now be excluded)
       qc.invalidateQueries({ queryKey: ["quick_flow_history"] });
     },
     [preview, qc]
@@ -505,7 +499,7 @@ export default function QuickFlow() {
     <div className="min-h-screen bg-background">
       <AppHeader />
 
-      <main className="container py-6 max-w-5xl mx-auto space-y-4">
+      <main className="container py-6 max-w-6xl mx-auto space-y-4">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Geração Rápida</h1>
@@ -530,10 +524,11 @@ export default function QuickFlow() {
           onChange={handleFileChange}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* LEFT: Reference */}
+        {/* Asymmetric grid: 35% reference, 65% variation */}
+        <div className="grid grid-cols-1 md:grid-cols-[2fr_3fr] gap-4">
+          {/* LEFT: Reference — minimal */}
           <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+            <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Referência
             </h2>
 
@@ -541,7 +536,7 @@ export default function QuickFlow() {
               <label
                 htmlFor="quick-file-input"
                 className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border hover:border-primary/50 bg-muted/20 cursor-pointer transition-colors"
-                style={{ maxHeight: "400px", aspectRatio: "9/16" }}
+                style={{ aspectRatio: "9/16" }}
               >
                 <Upload className="h-10 w-10 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground text-center px-4">
@@ -557,33 +552,45 @@ export default function QuickFlow() {
                 />
               </label>
             ) : (
-              <div className="relative rounded-lg border border-border/50 overflow-hidden bg-muted/10" style={{ maxHeight: "400px" }}>
-                <img src={preview} alt="Referência" className="w-full object-contain" style={{ maxHeight: "400px", aspectRatio: "9/16" }} />
+              <button
+                type="button"
+                onClick={() => setLightboxUrl(preview)}
+                className="relative rounded-lg border border-border/50 overflow-hidden bg-muted/10 w-full cursor-zoom-in"
+              >
+                <img
+                  src={preview}
+                  alt="Referência"
+                  className="w-full object-contain"
+                  style={{ aspectRatio: "9/16" }}
+                />
                 {step === "uploading" && (
                   <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
                 )}
-              </div>
+              </button>
             )}
 
             {preview && step !== "uploading" && (
-              <Button variant="ghost" size="sm" className="w-full gap-2" onClick={handleSwapImage}>
-                <RefreshCw className="h-3.5 w-3.5" />
+              <Button variant="ghost" size="sm" className="w-full gap-2 text-xs" onClick={handleSwapImage}>
+                <RefreshCw className="h-3 w-3" />
                 Trocar imagem
               </Button>
             )}
           </div>
 
-          {/* RIGHT: Result */}
+          {/* RIGHT: Variation — hero */}
           <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+            <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Variação
             </h2>
 
             {/* Empty state */}
             {(step === "idle" || step === "uploading" || step === "ready") && !hasCompletedSource && (
-              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/10" style={{ maxHeight: "400px", aspectRatio: "9/16" }}>
+              <div
+                className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/10"
+                style={{ aspectRatio: "9/16" }}
+              >
                 <Sparkles className="h-10 w-10 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground/60 text-center px-4">
                   {step === "ready"
@@ -595,7 +602,10 @@ export default function QuickFlow() {
 
             {/* Single generation tracking */}
             {(step === "generating" || (step === "tracking" && !!singleTrackingId)) && (
-              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10" style={{ maxHeight: "400px", aspectRatio: "9/16" }}>
+              <div
+                className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10"
+                style={{ aspectRatio: "9/16" }}
+              >
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Gerando variação…</p>
                 {step === "tracking" && (
@@ -611,13 +621,20 @@ export default function QuickFlow() {
 
             {/* Batch tracking — show result area with thumbnails updating live */}
             {step === "tracking" && !singleTrackingId && pendingCount > 0 && (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {activeVar?.status === "completed" && activeVar.resultUrl ? (
-                  <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10" style={{ maxHeight: "400px" }}>
-                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full object-contain" style={{ maxHeight: "400px" }} />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxUrl(activeVar.resultUrl!)}
+                    className="rounded-lg border border-border/50 overflow-hidden bg-muted/10 w-full cursor-zoom-in"
+                  >
+                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full object-contain" style={{ aspectRatio: "9/16" }} />
+                  </button>
                 ) : (
-                  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10" style={{ maxHeight: "400px", aspectRatio: "9/16" }}>
+                  <div
+                    className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10"
+                    style={{ aspectRatio: "9/16" }}
+                  >
                     <Loader2 className="h-10 w-10 animate-spin text-primary" />
                     <p className="text-sm text-muted-foreground">
                       Gerando {pendingCount} variação{pendingCount > 1 ? "ões" : ""}…
@@ -632,12 +649,16 @@ export default function QuickFlow() {
               </div>
             )}
 
-            {/* Completed: result image + thumbnail strip + quantity selector + actions */}
+            {/* Completed: result image + thumbnail strip + actions */}
             {step === "completed" && resultUrl && (
               <>
-                <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10" style={{ maxHeight: "400px" }}>
-                  <img src={resultUrl} alt="Variação gerada" className="w-full object-contain" style={{ maxHeight: "400px" }} />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setLightboxUrl(resultUrl)}
+                  className="rounded-lg border border-border/50 overflow-hidden bg-muted/10 w-full cursor-zoom-in"
+                >
+                  <img src={resultUrl} alt="Variação gerada" className="w-full object-contain" style={{ aspectRatio: "9/16" }} />
+                </button>
 
                 <VariationThumbnailStrip
                   variations={sessionVariations}
@@ -645,8 +666,8 @@ export default function QuickFlow() {
                   onSelect={handleSelectVariation}
                 />
 
-                <div className="space-y-1.5">
-                  {/* Quantity selector inline with generate button */}
+                <div className="space-y-2 pt-1">
+                  {/* Row 1: Quantity selector + Generate button */}
                   <div className="flex items-center gap-1.5">
                     {[1, 2, 3, 4, 5].map((n) => (
                       <button
@@ -654,7 +675,7 @@ export default function QuickFlow() {
                         onClick={() => setSelectedCount(n)}
                         disabled={pendingCount > 0 || generateMutation.isPending}
                         className={cn(
-                          "h-7 w-7 rounded text-xs font-medium transition-colors shrink-0",
+                          "h-8 w-8 rounded-md text-sm font-medium transition-colors shrink-0",
                           n === selectedCount
                             ? "bg-primary text-primary-foreground"
                             : "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
@@ -664,40 +685,60 @@ export default function QuickFlow() {
                       </button>
                     ))}
                     <Button
-                      variant="outline"
                       size="sm"
-                      className="flex-1 gap-1.5 h-7 text-xs"
+                      className="flex-1 gap-1.5 h-8"
                       disabled={pendingCount > 0 || generateMutation.isPending || !activeVar}
                       onClick={handleGenerateVariations}
                     >
                       {pendingCount > 0 ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
-                        <Sparkles className="h-3 w-3" />
+                        <Sparkles className="h-3.5 w-3.5" />
                       )}
                       Gerar Variações
                     </Button>
                   </div>
 
-                  <Button size="sm" className="w-full gap-1.5 h-8 text-xs" onClick={() => setActionModal("create")}>
-                    <UserPlus className="h-3 w-3" />
-                    Criar novo avatar com esta variação
-                  </Button>
-                  <Button variant="outline" size="sm" className="w-full gap-1.5 h-8 text-xs" onClick={handleDownload}>
-                    <Download className="h-3 w-3" />
-                    Baixar imagem
-                  </Button>
-                  <Button variant="ghost" size="sm" className="w-full gap-1.5 h-7 text-xs text-muted-foreground" onClick={resetAll}>
-                    <RotateCcw className="h-3 w-3" />
-                    Recomeçar
-                  </Button>
+                  {/* Row 2: Create avatar + Download side by side */}
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="flex-1 gap-1.5 h-8"
+                      onClick={() => setActionModal("create")}
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                      Criar avatar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 gap-1.5 h-8"
+                      onClick={handleDownload}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Baixar
+                    </Button>
+                  </div>
+
+                  {/* Row 3: Reset — discreet text link */}
+                  <div className="text-center">
+                    <button
+                      onClick={resetAll}
+                      className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+                    >
+                      Recomeçar
+                    </button>
+                  </div>
                 </div>
               </>
             )}
 
             {/* Error state */}
             {step === "error" && (
-              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4" style={{ maxHeight: "400px", aspectRatio: "9/16" }}>
+              <div
+                className="flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4"
+                style={{ aspectRatio: "9/16" }}
+              >
                 <AlertCircle className="h-10 w-10 text-destructive/60" />
                 <Alert variant="destructive" className="border-0 bg-transparent">
                   <AlertDescription className="text-center text-sm">
@@ -721,17 +762,19 @@ export default function QuickFlow() {
                   <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground" onClick={handleSwapImage}>
                     Trocar imagem
                   </Button>
-                  <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground" onClick={resetAll}>
-                    <RotateCcw className="h-3.5 w-3.5" />
+                  <button
+                    onClick={resetAll}
+                    className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+                  >
                     Recomeçar
-                  </Button>
+                  </button>
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Main generate button */}
+        {/* Main generate button (first generation, before any completed) */}
         {showMainButton && !hasCompletedSource && (
           <div className="flex justify-center">
             <Button
@@ -800,6 +843,23 @@ export default function QuickFlow() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Lightbox / Zoom modal */}
+      <Dialog open={!!lightboxUrl} onOpenChange={(v) => { if (!v) setLightboxUrl(null); }}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] p-2 bg-black/95 border-none [&>button]:text-white [&>button]:hover:text-white/80">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Visualização da imagem</DialogTitle>
+            <DialogDescription>Imagem ampliada para avaliação</DialogDescription>
+          </DialogHeader>
+          {lightboxUrl && (
+            <img
+              src={lightboxUrl}
+              alt="Imagem ampliada"
+              className="w-full h-full object-contain max-h-[85vh]"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -850,23 +910,24 @@ function VariationThumbnailStrip({
   if (variations.length <= 1) return null;
 
   return (
-    <div className="flex gap-2 overflow-x-auto py-1 px-0.5">
+    <div className="flex gap-1.5 overflow-x-auto py-1 px-0.5">
       {variations.map((v, i) => (
         <button
           key={v.generationId}
           onClick={() => onSelect(i)}
           disabled={v.status !== "completed"}
           className={cn(
-            "shrink-0 h-10 w-10 rounded overflow-hidden border-2 transition-all relative",
+            "shrink-0 w-10 rounded overflow-hidden border-2 transition-all relative",
             v.status === "completed" && i === selectedIndex
               ? "border-primary ring-1 ring-primary/50"
               : v.status === "completed"
               ? "border-border/50 opacity-70 hover:border-border hover:opacity-90"
               : "border-border/30 opacity-50"
           )}
+          style={{ aspectRatio: "9/16" }}
         >
           {v.status === "completed" && v.resultUrl ? (
-            <img src={v.resultUrl} alt={`Variação ${i + 1}`} className="h-full w-full object-cover" loading="lazy" width={40} height={40} />
+            <img src={v.resultUrl} alt={`Variação ${i + 1}`} className="h-full w-full object-cover" loading="lazy" width={40} height={71} />
           ) : v.status === "pending" ? (
             <div className="h-full w-full flex items-center justify-center bg-muted/20">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
