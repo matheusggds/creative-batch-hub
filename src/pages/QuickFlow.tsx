@@ -750,6 +750,16 @@ export default function QuickFlow() {
             </Button>
           </div>
         )}
+
+        {/* History section */}
+        <QuickFlowHistory
+          sessions={historySessions}
+          hasNextPage={!!hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          isLoading={historyLoading}
+          onRestore={handleRestore}
+          fetchNextPage={fetchNextPage}
+        />
       </main>
 
       {/* Headless batch trackers */}
