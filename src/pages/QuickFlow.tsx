@@ -334,6 +334,7 @@ export default function QuickFlow() {
     setPreview(URL.createObjectURL(f));
     setSingleTrackingId(null);
     setGenError(null);
+    setDetailsOpen(false);
     setSessionVariations([]);
     setSelectedVarIndex(-1);
     setSelectedCount(1);
