@@ -501,6 +501,7 @@ export default function QuickFlow() {
       setGenError(null);
       setSelectedCount(1);
       setPendingRestore(null);
+      setDetailsOpen(false);
 
       const vars: SessionVariation[] = session.variations.map((v) => ({
         generationId: v.generationId,

@@ -17,8 +17,7 @@ interface Props {
   isLoading?: boolean;
 }
 
-type JsonValue = string | number | boolean | null | JsonRecord | JsonValue[];
-type JsonRecord = Record<string, JsonValue | unknown>;
+type JsonRecord = Record<string, unknown>;
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   pending: { label: "Pendente", variant: "secondary" },
@@ -83,7 +82,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className="max-w-[60%] text-right text-foreground break-words">{value}</span>
+      <span className="max-w-[60%] break-words text-right text-foreground">{value}</span>
     </div>
   );
 }
