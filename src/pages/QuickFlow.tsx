@@ -737,13 +737,26 @@ export default function QuickFlow() {
             {/* Completed: result image + thumbnail strip + actions */}
             {step === "completed" && resultUrl && (
               <>
-                <button
-                  type="button"
-                  onClick={openVariationLightbox}
-                  className="rounded-lg border border-border/50 overflow-hidden bg-muted/10 w-full cursor-zoom-in"
-                >
-                  <img src={resultUrl} alt="Variação gerada" className="w-full object-contain" style={IMG_STYLE} />
-                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={openVariationLightbox}
+                    className="rounded-lg border border-border/50 overflow-hidden bg-muted/10 w-full cursor-zoom-in"
+                  >
+                    <img src={resultUrl} alt="Variação gerada" className="w-full object-contain" style={IMG_STYLE} />
+                  </button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className="absolute right-2 top-2 h-8 w-8 border border-border/60 bg-background/80 backdrop-blur hover:bg-background"
+                    onClick={() => setDetailsOpen(true)}
+                    disabled={!selectedCompletedVar}
+                  >
+                    <Info className="h-4 w-4" />
+                    <span className="sr-only">Ver detalhes da geração</span>
+                  </Button>
+                </div>
 
                 <VariationThumbnailStrip
                   variations={sessionVariations}
