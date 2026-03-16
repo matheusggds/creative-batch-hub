@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMemo } from "react";
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 12;
 
 export interface HistoryVariation {
   generationId: string;
@@ -115,21 +115,25 @@ export function useQuickFlowHistory(excludeAssetId?: string | null) {
       );
       const latest = sorted[0];
 
+      const variations = sorted
+        .filter((g) => g.result_url && g.result_asset_id)
+        .map((g) => ({
+          generationId: g.id,
+          resultUrl: g.result_url ?? "",
+          resultAssetId: g.result_asset_id ?? "",
+        }));
+
+      if (variations.length === 0) continue; // skip sessions with no successful results
+
       result.push({
         referenceAssetId: refId,
         referenceUrl: refUrlMap.get(refId) ?? "",
-        latestResultUrl: latest.result_url ?? "",
-        latestResultAssetId: latest.result_asset_id ?? "",
-        latestGenerationId: latest.id,
-        variationCount: sorted.length,
+        latestResultUrl: variations[0].resultUrl,
+        latestResultAssetId: variations[0].resultAssetId,
+        latestGenerationId: variations[0].generationId,
+        variationCount: variations.length,
         lastGeneratedAt: latest.created_at,
-        variations: sorted
-          .filter((g) => g.result_url)
-          .map((g) => ({
-            generationId: g.id,
-            resultUrl: g.result_url ?? "",
-            resultAssetId: g.result_asset_id ?? "",
-          })),
+        variations,
       });
     }
 

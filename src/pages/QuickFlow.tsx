@@ -73,9 +73,12 @@ function friendlyError(code: string | null | undefined): string {
 }
 
 function sanitizeErrorMessage(msg: string): string {
-  const technical = ["non-2xx", "Edge Function", "edge function", "generate_image", "extract_prompt", "FunctionsHttpError"];
-  if (technical.some((t) => msg.includes(t))) {
+  const technical = ["non-2xx", "Edge Function", "edge function", "generate_image", "extract_prompt", "FunctionsHttpError", "TypeError", "NetworkError", "AbortError", "status code"];
+  if (technical.some((t) => msg.toLowerCase().includes(t.toLowerCase()))) {
     return "Não foi possível iniciar a geração. Tente novamente.";
+  }
+  if (msg.length > 120) {
+    return "Ocorreu um erro. Tente novamente.";
   }
   return msg;
 }
@@ -651,7 +654,7 @@ export default function QuickFlow() {
                           <button
                             key={n}
                             onClick={() => setSelectedCount(n)}
-                            disabled={pendingCount > 0}
+                            disabled={pendingCount > 0 || generateMutation.isPending}
                             className={cn(
                               "h-8 w-8 rounded-md text-sm font-medium transition-colors",
                               n === selectedCount
@@ -668,7 +671,7 @@ export default function QuickFlow() {
                       variant="outline"
                       size="sm"
                       className="w-full gap-2"
-                      disabled={pendingCount > 0 || !activeVar}
+                      disabled={pendingCount > 0 || generateMutation.isPending || !activeVar}
                       onClick={handleGenerateVariations}
                     >
                       {pendingCount > 0 ? (
