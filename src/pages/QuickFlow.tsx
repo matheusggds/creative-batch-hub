@@ -857,7 +857,7 @@ function VariationThumbnailStrip({
           onClick={() => onSelect(i)}
           disabled={v.status !== "completed"}
           className={cn(
-            "shrink-0 h-12 w-12 rounded-md overflow-hidden border-2 transition-all relative",
+            "shrink-0 h-10 w-10 rounded overflow-hidden border-2 transition-all relative",
             v.status === "completed" && i === selectedIndex
               ? "border-primary ring-1 ring-primary/50"
               : v.status === "completed"
