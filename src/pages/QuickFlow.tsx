@@ -645,55 +645,50 @@ export default function QuickFlow() {
                   onSelect={handleSelectVariation}
                 />
 
-                <div className="space-y-2 pt-1">
-                  {/* Quantity selector + generate button */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground shrink-0">Quantidade:</span>
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <button
-                            key={n}
-                            onClick={() => setSelectedCount(n)}
-                            disabled={pendingCount > 0 || generateMutation.isPending}
-                            className={cn(
-                              "h-8 w-8 rounded-md text-sm font-medium transition-colors",
-                              n === selectedCount
-                                ? "bg-primary text-primary-foreground"
-                                : "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
-                            )}
-                          >
-                            {n}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                <div className="space-y-1.5">
+                  {/* Quantity selector inline with generate button */}
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => setSelectedCount(n)}
+                        disabled={pendingCount > 0 || generateMutation.isPending}
+                        className={cn(
+                          "h-7 w-7 rounded text-xs font-medium transition-colors shrink-0",
+                          n === selectedCount
+                            ? "bg-primary text-primary-foreground"
+                            : "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
+                        )}
+                      >
+                        {n}
+                      </button>
+                    ))}
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full gap-2"
+                      className="flex-1 gap-1.5 h-7 text-xs"
                       disabled={pendingCount > 0 || generateMutation.isPending || !activeVar}
                       onClick={handleGenerateVariations}
                     >
                       {pendingCount > 0 ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <Loader2 className="h-3 w-3 animate-spin" />
                       ) : (
-                        <Sparkles className="h-3.5 w-3.5" />
+                        <Sparkles className="h-3 w-3" />
                       )}
                       Gerar Variações
                     </Button>
                   </div>
 
-                  <Button size="sm" className="w-full gap-2" onClick={() => setActionModal("create")}>
-                    <UserPlus className="h-3.5 w-3.5" />
+                  <Button size="sm" className="w-full gap-1.5 h-8 text-xs" onClick={() => setActionModal("create")}>
+                    <UserPlus className="h-3 w-3" />
                     Criar novo avatar com esta variação
                   </Button>
-                  <Button variant="outline" size="sm" className="w-full gap-2" onClick={handleDownload}>
-                    <Download className="h-3.5 w-3.5" />
+                  <Button variant="outline" size="sm" className="w-full gap-1.5 h-8 text-xs" onClick={handleDownload}>
+                    <Download className="h-3 w-3" />
                     Baixar imagem
                   </Button>
-                  <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground" onClick={resetAll}>
-                    <RotateCcw className="h-3.5 w-3.5" />
+                  <Button variant="ghost" size="sm" className="w-full gap-1.5 h-7 text-xs text-muted-foreground" onClick={resetAll}>
+                    <RotateCcw className="h-3 w-3" />
                     Recomeçar
                   </Button>
                 </div>
