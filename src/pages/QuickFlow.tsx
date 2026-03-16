@@ -530,9 +530,9 @@ export default function QuickFlow() {
           onChange={handleFileChange}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* LEFT: Reference */}
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
               Referência
             </h2>
