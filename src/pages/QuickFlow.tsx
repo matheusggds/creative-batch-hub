@@ -1058,41 +1058,84 @@ function VariationThumbnailStrip({
   selectedIndex: number;
   onSelect: (index: number) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element || variations.length <= 1) return;
+
+    const updateScrollState = () => {
+      const maxScrollLeft = element.scrollWidth - element.clientWidth;
+      setCanScrollLeft(element.scrollLeft > 4);
+      setCanScrollRight(maxScrollLeft - element.scrollLeft > 4);
+    };
+
+    updateScrollState();
+    element.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("resize", updateScrollState);
+
+    return () => {
+      element.removeEventListener("scroll", updateScrollState);
+      window.removeEventListener("resize", updateScrollState);
+    };
+  }, [variations]);
+
   if (variations.length <= 1) return null;
 
   return (
-    <div className="flex gap-1.5 overflow-x-auto py-0.5 px-0.5">
-      {variations.map((v, i) => (
-        <button
-          key={v.generationId}
-          onClick={() => onSelect(i)}
-          disabled={v.status !== "completed"}
-          className={cn(
-            "shrink-0 w-10 rounded overflow-hidden border-2 transition-all relative",
-            v.status === "completed" && i === selectedIndex
-              ? "border-primary ring-1 ring-primary/50"
-              : v.status === "completed"
-              ? "border-border/50 opacity-70 hover:border-border hover:opacity-90"
-              : "border-border/30 opacity-50"
-          )}
-          style={{ aspectRatio: "9/16" }}
-        >
-          {v.status === "completed" && v.resultUrl ? (
-            <img src={v.resultUrl} alt={`Variação ${i + 1}`} className="h-full w-full object-cover" loading="lazy" width={40} height={71} />
-          ) : v.status === "pending" ? (
-            <div className="h-full w-full flex items-center justify-center bg-muted/20">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <div className="h-full w-full flex items-center justify-center bg-destructive/10">
-              <AlertCircle className="h-4 w-4 text-destructive/60" />
-            </div>
-          )}
-          <span className="absolute bottom-0 right-0 text-[9px] bg-background/80 px-0.5 rounded-tl text-muted-foreground">
-            {i + 1}
-          </span>
-        </button>
-      ))}
+    <div className="relative w-full">
+      <div
+        ref={scrollRef}
+        className="flex w-full flex-nowrap gap-1.5 overflow-x-auto px-0.5 py-0.5 scrollbar-thin scrollbar-track-transparent"
+      >
+        {variations.map((v, i) => (
+          <button
+            key={v.generationId}
+            onClick={() => onSelect(i)}
+            disabled={v.status !== "completed"}
+            className={cn(
+              "relative w-10 shrink-0 overflow-hidden rounded border-2 transition-all",
+              v.status === "completed" && i === selectedIndex
+                ? "border-primary ring-1 ring-primary/50"
+                : v.status === "completed"
+                  ? "border-border/50 opacity-70 hover:border-border hover:opacity-90"
+                  : "border-border/30 opacity-50"
+            )}
+            style={{ aspectRatio: "9/16" }}
+          >
+            {v.status === "completed" && v.resultUrl ? (
+              <img
+                src={v.resultUrl}
+                alt={`Variação ${i + 1}`}
+                className="h-full w-full object-cover"
+                loading="lazy"
+                width={40}
+                height={71}
+              />
+            ) : v.status === "pending" ? (
+              <div className="flex h-full w-full items-center justify-center bg-muted/20">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-destructive/10">
+                <AlertCircle className="h-4 w-4 text-destructive/60" />
+              </div>
+            )}
+            <span className="absolute bottom-0 right-0 rounded-tl bg-background/80 px-0.5 text-[9px] text-muted-foreground">
+              {i + 1}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {canScrollLeft && (
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-background to-transparent" />
+      )}
+      {canScrollRight && (
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent" />
+      )}
     </div>
   );
 }
