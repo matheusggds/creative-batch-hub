@@ -104,7 +104,7 @@ function SessionCard({
       onClick={onClick}
       className="group rounded-lg border border-border/50 bg-card overflow-hidden hover:border-primary/50 transition-all text-left"
     >
-      <div className="relative aspect-square">
+      <div className="relative w-full" style={{ paddingBottom: "100%" }}>
         <div className="absolute inset-0 flex">
           {/* Left half: reference */}
           <div className="w-1/2 h-full overflow-hidden">
@@ -113,6 +113,8 @@ function SessionCard({
                 src={session.referenceUrl}
                 alt="Referência"
                 className="h-full w-full object-cover"
+                width={80}
+                height={80}
                 loading="lazy"
               />
             ) : (
@@ -126,6 +128,8 @@ function SessionCard({
                 src={session.latestResultUrl}
                 alt="Variação"
                 className="h-full w-full object-cover"
+                width={80}
+                height={80}
                 loading="lazy"
               />
             ) : (

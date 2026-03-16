@@ -671,7 +671,7 @@ export default function QuickFlow() {
                       variant="outline"
                       size="sm"
                       className="w-full gap-2"
-                      disabled={pendingCount > 0 || !activeVar}
+                      disabled={pendingCount > 0 || generateMutation.isPending || !activeVar}
                       onClick={handleGenerateVariations}
                     >
                       {pendingCount > 0 ? (
