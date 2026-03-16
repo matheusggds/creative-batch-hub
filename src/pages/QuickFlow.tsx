@@ -58,6 +58,7 @@ interface SessionVariation {
 
 const STALL_TIMEOUT_MS = 120_000;
 const IMG_STYLE = { maxHeight: "55vh", aspectRatio: "9/16" } as const;
+const OPTIMISTIC_ID_PREFIX = "optimistic-quick-flow-";
 
 const FRIENDLY_ERRORS: Record<string, string> = {
   openai_missing_positive_prompt:
@@ -71,17 +72,17 @@ const FRIENDLY_ERRORS: Record<string, string> = {
 };
 
 function friendlyError(code: string | null | undefined): string {
-  if (!code) return "Erro desconhecido na geração.";
-  return FRIENDLY_ERRORS[code] ?? "Não foi possível gerar esta variação.";
+  if (!code) return "Não foi possível gerar a variação. Tente novamente.";
+  return FRIENDLY_ERRORS[code] ?? "Não foi possível gerar a variação. Tente novamente.";
 }
 
 function sanitizeErrorMessage(msg: string): string {
   const technical = ["non-2xx", "Edge Function", "edge function", "generate_image", "extract_prompt", "FunctionsHttpError", "TypeError", "NetworkError", "AbortError", "status code"];
   if (technical.some((t) => msg.toLowerCase().includes(t.toLowerCase()))) {
-    return "Não foi possível iniciar a geração. Tente novamente.";
+    return "Não foi possível gerar a variação. Tente novamente.";
   }
   if (msg.length > 120) {
-    return "Ocorreu um erro. Tente novamente.";
+    return "Não foi possível gerar a variação. Tente novamente.";
   }
   return msg;
 }

@@ -115,21 +115,26 @@ export function useQuickFlowHistory(excludeAssetId?: string | null) {
       const latest = sorted[0];
 
       const variations = sorted
-        .filter((g) => g.result_url && g.result_asset_id)
+        .filter(
+          (g) =>
+            g.status === "completed" &&
+            g.result_url &&
+            g.result_asset_id
+        )
         .map((g) => ({
           generationId: g.id,
           resultUrl: g.result_url ?? "",
           resultAssetId: g.result_asset_id ?? "",
         }));
 
-      if (variations.length === 0) continue; // skip sessions with no successful results
+      const latestCompleted = variations[0];
 
       result.push({
         referenceAssetId: refId,
         referenceUrl: refUrlMap.get(refId) ?? "",
-        latestResultUrl: variations[0].resultUrl,
-        latestResultAssetId: variations[0].resultAssetId,
-        latestGenerationId: variations[0].generationId,
+        latestResultUrl: latestCompleted?.resultUrl ?? "",
+        latestResultAssetId: latestCompleted?.resultAssetId ?? "",
+        latestGenerationId: latestCompleted?.generationId ?? "",
         variationCount: variations.length,
         lastGeneratedAt: latest.created_at,
         variations,
