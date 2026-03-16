@@ -612,8 +612,8 @@ export default function QuickFlow() {
             {step === "tracking" && !singleTrackingId && pendingCount > 0 && (
               <div className="space-y-3">
                 {activeVar?.status === "completed" && activeVar.resultUrl ? (
-                  <div className="rounded-lg border border-border/50 overflow-hidden">
-                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full aspect-square object-cover" />
+                  <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10">
+                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full aspect-[9/16] object-contain" />
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-square">
