@@ -654,7 +654,7 @@ export default function QuickFlow() {
                           <button
                             key={n}
                             onClick={() => setSelectedCount(n)}
-                            disabled={pendingCount > 0}
+                            disabled={pendingCount > 0 || generateMutation.isPending}
                             className={cn(
                               "h-8 w-8 rounded-md text-sm font-medium transition-colors",
                               n === selectedCount
