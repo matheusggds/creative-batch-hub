@@ -422,7 +422,10 @@ export default function QuickFlow() {
   // Unified "Gerar Variações" handler
   const handleGenerateVariations = useCallback(() => {
     const reuseId = activeVar?.generationId;
-    if (!reuseId || hasGenerationInProgress) return;
+    const generationLocked =
+      generateMutation.isPending || step === "generating" || step === "tracking";
+
+    if (!reuseId || generationLocked) return;
 
     const optimisticVars: SessionVariation[] = Array.from({ length: selectedCount }, (_, index) => ({
       generationId: `${OPTIMISTIC_ID_PREFIX}${Date.now()}-${index}`,
@@ -434,7 +437,7 @@ export default function QuickFlow() {
     setSessionVariations((prev) => [...prev, ...optimisticVars]);
     setStep("tracking");
     generateMutation.mutate({ reuseFromId: reuseId, variationCount: selectedCount });
-  }, [generateMutation, activeVar, selectedCount, hasGenerationInProgress]);
+  }, [generateMutation, activeVar, selectedCount, step]);
 
   const handleSelectVariation = useCallback((index: number) => {
     const v = sessionVariations[index];
