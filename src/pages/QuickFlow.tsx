@@ -556,8 +556,8 @@ export default function QuickFlow() {
                 />
               </label>
             ) : (
-              <div className="relative rounded-lg border border-border/50 overflow-hidden">
-                <img src={preview} alt="Referência" className="w-full aspect-square object-cover" />
+              <div className="relative rounded-lg border border-border/50 overflow-hidden bg-muted/10">
+                <img src={preview} alt="Referência" className="w-full aspect-[9/16] object-contain" />
                 {step === "uploading" && (
                   <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
