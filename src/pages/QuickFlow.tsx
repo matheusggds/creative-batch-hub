@@ -576,7 +576,7 @@ export default function QuickFlow() {
           </div>
 
           {/* RIGHT: Result */}
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
               Variação
             </h2>
