@@ -780,6 +780,27 @@ export default function QuickFlow() {
         onSubmit={(name) => createAvatarMutation.mutate(name)}
         resultUrl={resultUrl}
       />
+
+      {/* Restore confirmation dialog */}
+      <AlertDialog
+        open={!!pendingRestore}
+        onOpenChange={(open) => {
+          if (!open) setPendingRestore(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Trocar sessão?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem uma imagem carregada. Deseja trocar para esta sessão do histórico?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRestore}>Trocar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
