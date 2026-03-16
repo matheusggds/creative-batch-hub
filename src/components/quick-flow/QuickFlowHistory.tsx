@@ -32,7 +32,7 @@ export function QuickFlowHistory({
           fetchNextPage();
         }
       },
-      { rootMargin: "0px 0px 200px 0px", threshold: 0 }
+      { rootMargin: "0px 0px 300px 0px", threshold: 0 }
     );
     observer.observe(el);
     return () => observer.disconnect();
