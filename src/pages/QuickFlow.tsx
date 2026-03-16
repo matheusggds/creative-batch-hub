@@ -505,7 +505,7 @@ export default function QuickFlow() {
     <div className="min-h-screen bg-background">
       <AppHeader />
 
-      <main className="container py-8 max-w-5xl mx-auto space-y-6">
+      <main className="container py-6 max-w-5xl mx-auto space-y-4">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Geração Rápida</h1>
@@ -530,9 +530,9 @@ export default function QuickFlow() {
           onChange={handleFileChange}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* LEFT: Reference */}
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
               Referência
             </h2>
@@ -540,7 +540,8 @@ export default function QuickFlow() {
             {!preview ? (
               <label
                 htmlFor="quick-file-input"
-                className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border hover:border-primary/50 bg-muted/20 cursor-pointer aspect-[9/16] transition-colors"
+                className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border hover:border-primary/50 bg-muted/20 cursor-pointer transition-colors"
+                style={{ maxHeight: "400px", aspectRatio: "9/16" }}
               >
                 <Upload className="h-10 w-10 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground text-center px-4">
@@ -556,8 +557,8 @@ export default function QuickFlow() {
                 />
               </label>
             ) : (
-              <div className="relative rounded-lg border border-border/50 overflow-hidden bg-muted/10">
-                <img src={preview} alt="Referência" className="w-full aspect-[9/16] object-contain" />
+              <div className="relative rounded-lg border border-border/50 overflow-hidden bg-muted/10" style={{ maxHeight: "400px" }}>
+                <img src={preview} alt="Referência" className="w-full object-contain" style={{ maxHeight: "400px", aspectRatio: "9/16" }} />
                 {step === "uploading" && (
                   <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -575,14 +576,14 @@ export default function QuickFlow() {
           </div>
 
           {/* RIGHT: Result */}
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
               Variação
             </h2>
 
             {/* Empty state */}
             {(step === "idle" || step === "uploading" || step === "ready") && !hasCompletedSource && (
-              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/10 aspect-[9/16]">
+              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/10" style={{ maxHeight: "400px", aspectRatio: "9/16" }}>
                 <Sparkles className="h-10 w-10 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground/60 text-center px-4">
                   {step === "ready"
@@ -594,8 +595,8 @@ export default function QuickFlow() {
 
             {/* Single generation tracking */}
             {(step === "generating" || (step === "tracking" && !!singleTrackingId)) && (
-              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-[9/16]">
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10" style={{ maxHeight: "400px", aspectRatio: "9/16" }}>
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Gerando variação…</p>
                 {step === "tracking" && (
                   <div className="w-3/4 space-y-1">
@@ -612,11 +613,11 @@ export default function QuickFlow() {
             {step === "tracking" && !singleTrackingId && pendingCount > 0 && (
               <div className="space-y-3">
                 {activeVar?.status === "completed" && activeVar.resultUrl ? (
-                  <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10">
-                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full aspect-[9/16] object-contain" />
+                  <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10" style={{ maxHeight: "400px" }}>
+                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full object-contain" style={{ maxHeight: "400px" }} />
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-[9/16]">
+                  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10" style={{ maxHeight: "400px", aspectRatio: "9/16" }}>
                     <Loader2 className="h-10 w-10 animate-spin text-primary" />
                     <p className="text-sm text-muted-foreground">
                       Gerando {pendingCount} variação{pendingCount > 1 ? "ões" : ""}…
@@ -634,8 +635,8 @@ export default function QuickFlow() {
             {/* Completed: result image + thumbnail strip + quantity selector + actions */}
             {step === "completed" && resultUrl && (
               <>
-                <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10">
-                  <img src={resultUrl} alt="Variação gerada" className="w-full aspect-[9/16] object-contain" />
+                <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10" style={{ maxHeight: "400px" }}>
+                  <img src={resultUrl} alt="Variação gerada" className="w-full object-contain" style={{ maxHeight: "400px" }} />
                 </div>
 
                 <VariationThumbnailStrip
@@ -644,55 +645,50 @@ export default function QuickFlow() {
                   onSelect={handleSelectVariation}
                 />
 
-                <div className="space-y-2 pt-1">
-                  {/* Quantity selector + generate button */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground shrink-0">Quantidade:</span>
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <button
-                            key={n}
-                            onClick={() => setSelectedCount(n)}
-                            disabled={pendingCount > 0 || generateMutation.isPending}
-                            className={cn(
-                              "h-8 w-8 rounded-md text-sm font-medium transition-colors",
-                              n === selectedCount
-                                ? "bg-primary text-primary-foreground"
-                                : "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
-                            )}
-                          >
-                            {n}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                <div className="space-y-1.5">
+                  {/* Quantity selector inline with generate button */}
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => setSelectedCount(n)}
+                        disabled={pendingCount > 0 || generateMutation.isPending}
+                        className={cn(
+                          "h-7 w-7 rounded text-xs font-medium transition-colors shrink-0",
+                          n === selectedCount
+                            ? "bg-primary text-primary-foreground"
+                            : "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
+                        )}
+                      >
+                        {n}
+                      </button>
+                    ))}
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full gap-2"
+                      className="flex-1 gap-1.5 h-7 text-xs"
                       disabled={pendingCount > 0 || generateMutation.isPending || !activeVar}
                       onClick={handleGenerateVariations}
                     >
                       {pendingCount > 0 ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <Loader2 className="h-3 w-3 animate-spin" />
                       ) : (
-                        <Sparkles className="h-3.5 w-3.5" />
+                        <Sparkles className="h-3 w-3" />
                       )}
                       Gerar Variações
                     </Button>
                   </div>
 
-                  <Button size="sm" className="w-full gap-2" onClick={() => setActionModal("create")}>
-                    <UserPlus className="h-3.5 w-3.5" />
+                  <Button size="sm" className="w-full gap-1.5 h-8 text-xs" onClick={() => setActionModal("create")}>
+                    <UserPlus className="h-3 w-3" />
                     Criar novo avatar com esta variação
                   </Button>
-                  <Button variant="outline" size="sm" className="w-full gap-2" onClick={handleDownload}>
-                    <Download className="h-3.5 w-3.5" />
+                  <Button variant="outline" size="sm" className="w-full gap-1.5 h-8 text-xs" onClick={handleDownload}>
+                    <Download className="h-3 w-3" />
                     Baixar imagem
                   </Button>
-                  <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground" onClick={resetAll}>
-                    <RotateCcw className="h-3.5 w-3.5" />
+                  <Button variant="ghost" size="sm" className="w-full gap-1.5 h-7 text-xs text-muted-foreground" onClick={resetAll}>
+                    <RotateCcw className="h-3 w-3" />
                     Recomeçar
                   </Button>
                 </div>
@@ -701,7 +697,7 @@ export default function QuickFlow() {
 
             {/* Error state */}
             {step === "error" && (
-              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-destructive/30 bg-destructive/5 aspect-[9/16] p-4">
+              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4" style={{ maxHeight: "400px", aspectRatio: "9/16" }}>
                 <AlertCircle className="h-10 w-10 text-destructive/60" />
                 <Alert variant="destructive" className="border-0 bg-transparent">
                   <AlertDescription className="text-center text-sm">
@@ -861,7 +857,7 @@ function VariationThumbnailStrip({
           onClick={() => onSelect(i)}
           disabled={v.status !== "completed"}
           className={cn(
-            "shrink-0 h-12 w-12 rounded-md overflow-hidden border-2 transition-all relative",
+            "shrink-0 h-10 w-10 rounded overflow-hidden border-2 transition-all relative",
             v.status === "completed" && i === selectedIndex
               ? "border-primary ring-1 ring-primary/50"
               : v.status === "completed"
@@ -870,7 +866,7 @@ function VariationThumbnailStrip({
           )}
         >
           {v.status === "completed" && v.resultUrl ? (
-            <img src={v.resultUrl} alt={`Variação ${i + 1}`} className="h-full w-full object-cover" loading="lazy" width={48} height={48} />
+            <img src={v.resultUrl} alt={`Variação ${i + 1}`} className="h-full w-full object-cover" loading="lazy" width={40} height={40} />
           ) : v.status === "pending" ? (
             <div className="h-full w-full flex items-center justify-center bg-muted/20">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
