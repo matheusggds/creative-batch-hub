@@ -99,6 +99,9 @@ export default function QuickFlow() {
   // Quantity selector for batch generation
   const [selectedCount, setSelectedCount] = useState<number>(1);
 
+  // Restore confirmation state
+  const [pendingRestore, setPendingRestore] = useState<HistorySession | null>(null);
+
   // Single tracking id for the first generation (no batch)
   const [singleTrackingId, setSingleTrackingId] = useState<string | null>(null);
 
