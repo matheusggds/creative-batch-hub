@@ -540,7 +540,7 @@ export default function QuickFlow() {
             {!preview ? (
               <label
                 htmlFor="quick-file-input"
-                className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border hover:border-primary/50 bg-muted/20 cursor-pointer aspect-square transition-colors"
+                className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border hover:border-primary/50 bg-muted/20 cursor-pointer aspect-[9/16] transition-colors"
               >
                 <Upload className="h-10 w-10 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground text-center px-4">
