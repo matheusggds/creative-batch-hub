@@ -617,7 +617,7 @@ export default function QuickFlow() {
                     <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full object-contain" style={{ maxHeight: "400px" }} />
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-[9/16]">
+                  <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10" style={{ maxHeight: "400px", aspectRatio: "9/16" }}>
                     <Loader2 className="h-10 w-10 animate-spin text-primary" />
                     <p className="text-sm text-muted-foreground">
                       Gerando {pendingCount} variação{pendingCount > 1 ? "ões" : ""}…
