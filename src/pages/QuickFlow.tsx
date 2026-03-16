@@ -58,6 +58,7 @@ interface SessionVariation {
 
 const STALL_TIMEOUT_MS = 120_000;
 const IMG_STYLE = { maxHeight: "55vh", aspectRatio: "9/16" } as const;
+const OPTIMISTIC_ID_PREFIX = "optimistic-quick-flow-";
 
 const FRIENDLY_ERRORS: Record<string, string> = {
   openai_missing_positive_prompt:
@@ -71,17 +72,17 @@ const FRIENDLY_ERRORS: Record<string, string> = {
 };
 
 function friendlyError(code: string | null | undefined): string {
-  if (!code) return "Erro desconhecido na geração.";
-  return FRIENDLY_ERRORS[code] ?? "Não foi possível gerar esta variação.";
+  if (!code) return "Não foi possível gerar a variação. Tente novamente.";
+  return FRIENDLY_ERRORS[code] ?? "Não foi possível gerar a variação. Tente novamente.";
 }
 
 function sanitizeErrorMessage(msg: string): string {
   const technical = ["non-2xx", "Edge Function", "edge function", "generate_image", "extract_prompt", "FunctionsHttpError", "TypeError", "NetworkError", "AbortError", "status code"];
   if (technical.some((t) => msg.toLowerCase().includes(t.toLowerCase()))) {
-    return "Não foi possível iniciar a geração. Tente novamente.";
+    return "Não foi possível gerar a variação. Tente novamente.";
   }
   if (msg.length > 120) {
-    return "Ocorreu um erro. Tente novamente.";
+    return "Não foi possível gerar a variação. Tente novamente.";
   }
   return msg;
 }
@@ -125,6 +126,8 @@ export default function QuickFlow() {
   // Count pending variations
   const pendingCount = sessionVariations.filter((v) => v.status === "pending").length;
   const completedVars = sessionVariations.filter((v) => v.status === "completed");
+  const selectedCompletedVar =
+    activeVar?.status === "completed" ? activeVar : completedVars[0] ?? null;
 
   // Single generation tracking (first generation only, no batch)
   const trackingId = step === "tracking" ? singleTrackingId : null;
@@ -132,10 +135,10 @@ export default function QuickFlow() {
   const genStatus = statusData?.generation.status ?? null;
   const progressPct = statusData?.generation.progress_pct ?? 0;
 
-  // Result URL: active variation in completed, live data during single tracking
+  // Result URL: selected completed variation, or live data during first generation
   const resultUrl =
     step === "completed"
-      ? activeVar?.resultUrl ?? null
+      ? selectedCompletedVar?.resultUrl ?? null
       : statusData?.generation.result_url ?? null;
 
   // Stall detection
@@ -344,7 +347,7 @@ export default function QuickFlow() {
     }) => {
       if (!assetId) throw new Error("No asset");
       setGenError(null);
-      setStep("generating");
+      setStep(reuseFromId ? "tracking" : "generating");
 
       const body: Record<string, unknown> = {
         toolType: "quick_similar_image",
@@ -375,13 +378,18 @@ export default function QuickFlow() {
         ids = data.generationIds as string[];
       }
 
+      const isFollowUpGeneration = !!variables.reuseFromId;
+
       if (ids.length === 0) {
-        setGenError("Nenhuma geração foi criada.");
-        setStep("error");
+        setSessionVariations((prev) =>
+          prev.filter((v) => !v.generationId.startsWith(OPTIMISTIC_ID_PREFIX))
+        );
+        setGenError("Não foi possível gerar a variação. Tente novamente.");
+        setStep(isFollowUpGeneration ? "completed" : "error");
         return;
       }
 
-      if (ids.length === 1 && !(variables.variationCount && variables.variationCount > 1)) {
+      if (!isFollowUpGeneration && ids.length === 1 && !(variables.variationCount && variables.variationCount > 1)) {
         setSingleTrackingId(ids[0]);
         setStep("tracking");
         return;
@@ -392,14 +400,21 @@ export default function QuickFlow() {
         status: "pending" as const,
       }));
 
-      setSessionVariations((prev) => [...prev, ...newVars]);
+      setSessionVariations((prev) => [
+        ...prev.filter((v) => !v.generationId.startsWith(OPTIMISTIC_ID_PREFIX)),
+        ...newVars,
+      ]);
       setSingleTrackingId(null);
       setStep("tracking");
     },
-    onError: (err: Error) => {
+    onError: (err: Error, variables) => {
       const msg = sanitizeErrorMessage(err.message || "Erro ao iniciar geração.");
+      const isFollowUpGeneration = !!variables.reuseFromId;
+      setSessionVariations((prev) =>
+        prev.filter((v) => !v.generationId.startsWith(OPTIMISTIC_ID_PREFIX))
+      );
       setGenError(msg);
-      setStep("error");
+      setStep(isFollowUpGeneration ? "completed" : "error");
       toast.error(msg);
     },
   });
@@ -407,12 +422,22 @@ export default function QuickFlow() {
   // Unified "Gerar Variações" handler
   const handleGenerateVariations = useCallback(() => {
     const reuseId = activeVar?.generationId;
-    if (!reuseId) return;
+    const generationLocked =
+      generateMutation.isPending || step === "generating" || step === "tracking";
+
+    if (!reuseId || generationLocked) return;
+
+    const optimisticVars: SessionVariation[] = Array.from({ length: selectedCount }, (_, index) => ({
+      generationId: `${OPTIMISTIC_ID_PREFIX}${Date.now()}-${index}`,
+      status: "pending",
+    }));
+
     setSingleTrackingId(null);
     setGenError(null);
-    setStep("ready");
-    setTimeout(() => generateMutation.mutate({ reuseFromId: reuseId, variationCount: selectedCount }), 0);
-  }, [generateMutation, activeVar, selectedCount]);
+    setSessionVariations((prev) => [...prev, ...optimisticVars]);
+    setStep("tracking");
+    generateMutation.mutate({ reuseFromId: reuseId, variationCount: selectedCount });
+  }, [generateMutation, activeVar, selectedCount, step]);
 
   const handleSelectVariation = useCallback((index: number) => {
     const v = sessionVariations[index];
@@ -521,6 +546,8 @@ export default function QuickFlow() {
 
   const showMainButton = step === "ready" || step === "generating" || (step === "tracking" && !!singleTrackingId);
   const hasCompletedSource = completedVars.length > 0;
+  const hasGenerationInProgress =
+    generateMutation.isPending || step === "generating" || step === "tracking";
 
   // Pending variation IDs for batch tracking
   const pendingVariationIds = sessionVariations
@@ -712,7 +739,7 @@ export default function QuickFlow() {
                         onClick={() => setSelectedCount(n)}
                         disabled={pendingCount > 0 || generateMutation.isPending}
                         className={cn(
-                          "h-7 w-7 rounded-md text-xs font-medium transition-colors shrink-0",
+                          "h-7 w-7 rounded-md text-xs font-medium transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed",
                           n === selectedCount
                             ? "bg-primary text-primary-foreground"
                             : "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"

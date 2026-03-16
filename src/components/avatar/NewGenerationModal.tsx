@@ -138,7 +138,7 @@ export function NewGenerationModal({
     },
     onSuccess: (data) => {
       setCreatedCount(data.length);
-      toast.success(`${data.length} geração(ões) criada(s) com sucesso!`);
+      toast.success(`${data.length} ${data.length === 1 ? "geração criada com sucesso" : "gerações criadas com sucesso"}!`);
       qc.invalidateQueries({ queryKey: ["avatar_generations", avatarProfileId] });
       if (data[0]?.generationId) onGenerationCreated?.(data[0].generationId);
     },
