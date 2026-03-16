@@ -1004,6 +1004,13 @@ export default function QuickFlow() {
           )}
         </DialogContent>
       </Dialog>
+
+      <QuickFlowGenerationDetailsSheet
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        data={activeVarDetails}
+        isLoading={isActiveVarDetailsLoading}
+      />
     </div>
   );
 }
