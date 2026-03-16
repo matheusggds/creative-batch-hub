@@ -73,9 +73,12 @@ function friendlyError(code: string | null | undefined): string {
 }
 
 function sanitizeErrorMessage(msg: string): string {
-  const technical = ["non-2xx", "Edge Function", "edge function", "generate_image", "extract_prompt", "FunctionsHttpError"];
-  if (technical.some((t) => msg.includes(t))) {
+  const technical = ["non-2xx", "Edge Function", "edge function", "generate_image", "extract_prompt", "FunctionsHttpError", "TypeError", "NetworkError", "AbortError", "status code"];
+  if (technical.some((t) => msg.toLowerCase().includes(t.toLowerCase()))) {
     return "Não foi possível iniciar a geração. Tente novamente.";
+  }
+  if (msg.length > 120) {
+    return "Ocorreu um erro. Tente novamente.";
   }
   return msg;
 }
