@@ -45,7 +45,6 @@ export function useQuickFlowHistory(excludeAssetId?: string | null) {
           "id, status, result_url, result_asset_id, created_at, reference_asset_id"
         )
         .eq("tool_type", "quick_similar_image")
-        .eq("status", "completed")
         .order("created_at", { ascending: false })
         .range(from, to);
 
