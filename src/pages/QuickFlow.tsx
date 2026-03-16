@@ -7,6 +7,7 @@ import { useGenerationStatus } from "@/hooks/useGenerationStatus";
 import { useQuickFlowHistory, type HistorySession } from "@/hooks/useQuickFlowHistory";
 import { uploadAssetFile } from "@/lib/storage";
 import { AppHeader } from "@/components/AppHeader";
+import { QuickFlowGenerationDetailsSheet } from "@/components/quick-flow/QuickFlowGenerationDetailsSheet";
 import { QuickFlowHistory } from "@/components/quick-flow/QuickFlowHistory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,7 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
