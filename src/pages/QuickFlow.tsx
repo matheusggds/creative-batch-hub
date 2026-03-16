@@ -128,9 +128,6 @@ export default function QuickFlow() {
   const completedVars = sessionVariations.filter((v) => v.status === "completed");
   const selectedCompletedVar =
     activeVar?.status === "completed" ? activeVar : completedVars[0] ?? null;
-  const hasCompletedSource = completedVars.length > 0;
-  const hasGenerationInProgress =
-    generateMutation.isPending || step === "generating" || step === "tracking";
 
   // Single generation tracking (first generation only, no batch)
   const trackingId = step === "tracking" ? singleTrackingId : null;
