@@ -105,6 +105,7 @@ export default function QuickFlow() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   // Separate flag for reference lightbox
   const [refLightbox, setRefLightbox] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   // Session variations history (in-memory only)
   const [sessionVariations, setSessionVariations] = useState<SessionVariation[]>([]);
@@ -134,6 +135,9 @@ export default function QuickFlow() {
   // Single generation tracking (first generation only, no batch)
   const trackingId = step === "tracking" ? singleTrackingId : null;
   const { data: statusData } = useGenerationStatus(trackingId, { skipDetails: true });
+  const { data: activeVarDetails, isLoading: isActiveVarDetailsLoading } = useGenerationStatus(
+    detailsOpen ? selectedCompletedVar?.generationId ?? null : null
+  );
   const genStatus = statusData?.generation.status ?? null;
   const progressPct = statusData?.generation.progress_pct ?? 0;
 
