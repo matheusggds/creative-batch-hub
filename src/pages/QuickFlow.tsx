@@ -347,7 +347,7 @@ export default function QuickFlow() {
     }) => {
       if (!assetId) throw new Error("No asset");
       setGenError(null);
-      setStep("generating");
+      setStep(reuseFromId ? "tracking" : "generating");
 
       const body: Record<string, unknown> = {
         toolType: "quick_similar_image",
@@ -378,13 +378,18 @@ export default function QuickFlow() {
         ids = data.generationIds as string[];
       }
 
+      const isFollowUpGeneration = !!variables.reuseFromId;
+
       if (ids.length === 0) {
-        setGenError("Nenhuma geração foi criada.");
-        setStep("error");
+        setSessionVariations((prev) =>
+          prev.filter((v) => !v.generationId.startsWith(OPTIMISTIC_ID_PREFIX))
+        );
+        setGenError("Não foi possível gerar a variação. Tente novamente.");
+        setStep(isFollowUpGeneration ? "completed" : "error");
         return;
       }
 
-      if (ids.length === 1 && !(variables.variationCount && variables.variationCount > 1)) {
+      if (!isFollowUpGeneration && ids.length === 1 && !(variables.variationCount && variables.variationCount > 1)) {
         setSingleTrackingId(ids[0]);
         setStep("tracking");
         return;
@@ -395,14 +400,21 @@ export default function QuickFlow() {
         status: "pending" as const,
       }));
 
-      setSessionVariations((prev) => [...prev, ...newVars]);
+      setSessionVariations((prev) => [
+        ...prev.filter((v) => !v.generationId.startsWith(OPTIMISTIC_ID_PREFIX)),
+        ...newVars,
+      ]);
       setSingleTrackingId(null);
       setStep("tracking");
     },
-    onError: (err: Error) => {
+    onError: (err: Error, variables) => {
       const msg = sanitizeErrorMessage(err.message || "Erro ao iniciar geração.");
+      const isFollowUpGeneration = !!variables.reuseFromId;
+      setSessionVariations((prev) =>
+        prev.filter((v) => !v.generationId.startsWith(OPTIMISTIC_ID_PREFIX))
+      );
       setGenError(msg);
-      setStep("error");
+      setStep(isFollowUpGeneration ? "completed" : "error");
       toast.error(msg);
     },
   });
