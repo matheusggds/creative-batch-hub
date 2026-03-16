@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMemo } from "react";
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 12;
 
 export interface HistoryVariation {
   generationId: string;
