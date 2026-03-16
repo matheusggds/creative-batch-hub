@@ -1,42 +1,63 @@
 
 
-## Quick Flow — Fit in One Viewport
+## Plan: Unify Avatar Library with Generation Timeline
 
-### Problem
-Images use `aspect-ratio: 9/16` which makes them tall regardless of viewport. Actions require scrolling.
+### Summary
+Remove the separate Generation History section. Show in-progress and failed generations as inline cards in the Avatar Library grid. Replace the raw image preview with a rich Image Detail Modal.
 
-### Changes (all in `src/pages/QuickFlow.tsx`)
+### Changes
 
-#### 1. Constrain image heights to viewport
-Replace `style={{ aspectRatio: "9/16" }}` on all main images/containers with `max-height: 55vh` + `object-fit: contain`. This applies to:
-- Reference image (line 564)
-- Reference upload placeholder (line 539)
-- Variation empty state (line 592)
-- Single tracking spinner (line 607)
-- Batch tracking image/spinner (lines 631, 636)
-- Completed result image (line 660)
-- Error state (line 741)
+#### 1. New component: `src/components/avatar/ImageDetailModal.tsx`
+Rich modal for clicking any image card. Shows:
+- Large image preview (or placeholder for in-progress/error for failed)
+- Status badge, timestamp, shot/angle label
+- Whether image is original reference or generated
+- Reference images used (from `generation_reference_assets` via generation data)
+- Extracted prompt / debug info (collapsible)
+- Generation ID for debugging
+- Actions: "Use as Reference" (future), Close
 
-Each container gets `style={{ maxHeight: "55vh", aspectRatio: "9/16" }}` — the aspect-ratio provides the shape but maxHeight caps it.
+#### 2. Refactor `src/pages/AvatarDetails.tsx`
+- Import and use `useAvatarGenerations` to get all generations for this avatar
+- Build a unified grid: reference assets + active/failed generation placeholders
+  - Completed generations already appear as references (pipeline adds to `avatar_reference_assets`)
+  - Active generations (pending/processing/queued) → placeholder cards with spinner + progress
+  - Failed generations (no `result_asset_id`) → error cards with inline error state
+- Remove the `Collapsible` + `GenerationHistorySection` import entirely
+- Remove `historyOpen` state
+- Replace the raw `previewUrl` dialog with `ImageDetailModal`
+- Track clicked item as `{ type: 'reference' | 'generation', ref?, generation? }` instead of just `previewUrl`
+- Normal-mode click opens `ImageDetailModal` with full context
 
-#### 2. Lightbox with variation navigation
-Replace the simple lightbox with one that navigates between session variations:
-- State: `lightboxIndex: number | null` (instead of `lightboxUrl: string | null`)
-- Left/right arrow buttons (ChevronLeft/ChevronRight from lucide)
-- "2 de 5" indicator text at bottom
-- Arrow key support (useEffect with keydown listener)
-- Only navigate to completed variations
-- Keep clicking reference image opening its own standalone lightbox (separate state or special index like -1)
+#### 3. No changes to `GenerateBaseAnglesModal.tsx`
+Selection mode, preloading, and generation pipeline stay untouched.
 
-#### 3. Compact spacing
-- Page header: reduce `py-6` to `py-4`, reduce title from `text-2xl` to `text-xl`
-- Card containers: `p-4` → `p-3`
-- Action area `space-y-2` → `space-y-1.5`
-- Button heights already `h-8`, keep as-is
+#### 4. Keep `GenerationHistorySection.tsx` file
+Just stop importing it. No deletion needed.
 
-#### 4. History visibility
-- Reduce `space-y-4` on main container to `space-y-3` so history title peeks into viewport
+### Grid merge logic
+```text
+gridItems = [
+  ...activeGenerations.map(g => ({ type: 'generation', generation: g })),
+  ...avatar.references.map(r => ({ type: 'reference', ref: r, generation: matchedGen })),
+  ...failedGenerations.filter(notInRefs).map(g => ({ type: 'generation', generation: g })),
+]
+```
+Active generations appear first (top of grid). Failed without result appear at end.
 
-### Files changed
-- `src/pages/QuickFlow.tsx` — all changes above
+Match reference → generation via: find generation where `result_asset_id === ref.asset_id` or generation `reference_asset_id === ref.asset_id`.
+
+### `useAvatarGenerations` update
+Add `result_asset_id` to the select query so we can match generations to reference assets.
+
+### Files affected
+| File | Change |
+|---|---|
+| `src/components/avatar/ImageDetailModal.tsx` | **New** — rich image detail view |
+| `src/pages/AvatarDetails.tsx` | Merge grid, remove history section, use ImageDetailModal |
+| `src/hooks/useAvatarGenerations.ts` | Add `result_asset_id` to select |
+
+### Risks
+- If pipeline doesn't add completed results to `avatar_reference_assets`, completed generations would be invisible. Mitigation: also show completed generations without matching reference as grid items.
+- Polling for active generations already exists in `useAvatarGenerations` (3s interval when active). No new polling needed.
 
