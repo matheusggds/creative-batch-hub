@@ -557,8 +557,8 @@ export default function QuickFlow() {
                 />
               </label>
             ) : (
-              <div className="relative rounded-lg border border-border/50 overflow-hidden bg-muted/10">
-                <img src={preview} alt="Referência" className="w-full aspect-[9/16] object-contain" />
+              <div className="relative rounded-lg border border-border/50 overflow-hidden bg-muted/10" style={{ maxHeight: "400px" }}>
+                <img src={preview} alt="Referência" className="w-full object-contain" style={{ maxHeight: "400px", aspectRatio: "9/16" }} />
                 {step === "uploading" && (
                   <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
