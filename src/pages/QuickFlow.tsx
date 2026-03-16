@@ -634,8 +634,8 @@ export default function QuickFlow() {
             {/* Completed: result image + thumbnail strip + quantity selector + actions */}
             {step === "completed" && resultUrl && (
               <>
-                <div className="rounded-lg border border-border/50 overflow-hidden">
-                  <img src={resultUrl} alt="Variação gerada" className="w-full aspect-square object-cover" />
+                <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10">
+                  <img src={resultUrl} alt="Variação gerada" className="w-full aspect-[9/16] object-contain" />
                 </div>
 
                 <VariationThumbnailStrip
