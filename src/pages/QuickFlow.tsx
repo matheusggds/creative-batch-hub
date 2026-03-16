@@ -595,8 +595,8 @@ export default function QuickFlow() {
 
             {/* Single generation tracking */}
             {(step === "generating" || (step === "tracking" && !!singleTrackingId)) && (
-              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-[9/16]">
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10" style={{ maxHeight: "400px", aspectRatio: "9/16" }}>
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Gerando variação…</p>
                 {step === "tracking" && (
                   <div className="w-3/4 space-y-1">
