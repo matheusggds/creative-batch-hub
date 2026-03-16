@@ -870,7 +870,7 @@ function VariationThumbnailStrip({
           )}
         >
           {v.status === "completed" && v.resultUrl ? (
-            <img src={v.resultUrl} alt={`Variação ${i + 1}`} className="h-full w-full object-cover" />
+            <img src={v.resultUrl} alt={`Variação ${i + 1}`} className="h-full w-full object-cover" loading="lazy" width={48} height={48} />
           ) : v.status === "pending" ? (
             <div className="h-full w-full flex items-center justify-center bg-muted/20">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
