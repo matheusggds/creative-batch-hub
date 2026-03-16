@@ -613,8 +613,8 @@ export default function QuickFlow() {
             {step === "tracking" && !singleTrackingId && pendingCount > 0 && (
               <div className="space-y-3">
                 {activeVar?.status === "completed" && activeVar.resultUrl ? (
-                  <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10">
-                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full aspect-[9/16] object-contain" />
+                  <div className="rounded-lg border border-border/50 overflow-hidden bg-muted/10" style={{ maxHeight: "400px" }}>
+                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full object-contain" style={{ maxHeight: "400px" }} />
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10 aspect-[9/16]">
