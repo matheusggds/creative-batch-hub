@@ -505,7 +505,7 @@ export default function QuickFlow() {
     <div className="min-h-screen bg-background">
       <AppHeader />
 
-      <main className="container py-8 max-w-5xl mx-auto space-y-6">
+      <main className="container py-6 max-w-5xl mx-auto space-y-4">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Geração Rápida</h1>
