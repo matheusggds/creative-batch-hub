@@ -697,7 +697,7 @@ export default function QuickFlow() {
 
             {/* Error state */}
             {step === "error" && (
-              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-destructive/30 bg-destructive/5 aspect-[9/16] p-4">
+              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4" style={{ maxHeight: "400px", aspectRatio: "9/16" }}>
                 <AlertCircle className="h-10 w-10 text-destructive/60" />
                 <Alert variant="destructive" className="border-0 bg-transparent">
                   <AlertDescription className="text-center text-sm">
