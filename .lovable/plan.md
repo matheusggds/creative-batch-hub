@@ -1,72 +1,63 @@
 
-Implementação proposta para o Quick Flow:
 
-1. Fonte de dados dos detalhes
-- Estender `useGenerationStatus` para buscar, além do que já existe:
-  - da `generations`: `pipeline_type`, `source_mode`, `tool_type`, `started_at`, `finished_at`, `created_at`, `status`, `ai_parameters`, `extracted_prompt`, `result_url`, `error_code`
-  - de `generation_jobs`: `input_payload`, `output_payload`, `error_payload`, `provider`, `model`, `step`, `status`, `id`, timestamps
-- Manter polling só quando a geração ainda estiver ativa, como já acontece.
+## Plan: Unify Avatar Library with Generation Timeline
 
-2. Painel lateral de detalhes
-- Criar um componente dedicado para o Quick Flow, reaproveitando padrões visuais do `ImageDetailModal`.
-- Usar o componente lateral já existente em `src/components/ui/sheet.tsx` para abrir um painel à direita com overlay, em vez do `drawer.tsx` atual que é bottom sheet.
-- Largura alvo: `sm:max-w-[380px]` / ~350–400px.
+### Summary
+Remove the separate Generation History section. Show in-progress and failed generations as inline cards in the Avatar Library grid. Replace the raw image preview with a rich Image Detail Modal.
 
-3. Acesso pelo card da variação ativa
-- Adicionar um botão pequeno de info/detalhes sobreposto no canto superior direito da imagem principal da variação.
-- O botão só aparece quando existir uma variação selecionada/ativa.
-- Clique abre o painel sem alterar lightbox nem layout principal.
+### Changes
 
-4. Conteúdo do painel
-- Seção “Prompt utilizado”
-  - Resolver o prompt com fallback:
-    1. prompt final em `generation_jobs.input_payload`
-    2. campos úteis em `generations.ai_parameters`
-    3. `generations.extracted_prompt`
-  - Exibir em bloco com fundo sutil, altura limitada e scroll.
-  - Botão “Copiar” com feedback visual.
-- Seção “Detalhes da geração”
-  - Modelo
-  - Provider
-  - Tipo / source mode
-  - Pipeline type
-  - Status humanizado
-  - Data/hora
-  - Dimensões se existirem em `output_payload` ou metadados persistidos
-- Seção “Informações de contexto”
-  - Contagem de imagens de referência enviadas ao provider: no Quick Flow exibir `0`
-  - Indicar “Prompt reutilizado de geração anterior” quando `reusePromptFromGenerationId` existir em algum `input_payload`
-- Seção “Detalhes técnicos” colapsada por padrão
-  - `generation.id`
-  - `job.id` (job mais relevante/final)
-  - `pipeline_type`
-  - `source_mode`
-  - `tool_type`
-  - payloads/metadados úteis resumidos, sem poluir a UI
+#### 1. New component: `src/components/avatar/ImageDetailModal.tsx`
+Rich modal for clicking any image card. Shows:
+- Large image preview (or placeholder for in-progress/error for failed)
+- Status badge, timestamp, shot/angle label
+- Whether image is original reference or generated
+- Reference images used (from `generation_reference_assets` via generation data)
+- Extracted prompt / debug info (collapsible)
+- Generation ID for debugging
+- Actions: "Use as Reference" (future), Close
 
-5. Atualização ao trocar thumbnail
-- Vincular o painel à `activeVar`.
-- Se o painel estiver aberto e o usuário clicar em outra thumbnail, manter aberto e recarregar os dados da nova geração automaticamente.
+#### 2. Refactor `src/pages/AvatarDetails.tsx`
+- Import and use `useAvatarGenerations` to get all generations for this avatar
+- Build a unified grid: reference assets + active/failed generation placeholders
+  - Completed generations already appear as references (pipeline adds to `avatar_reference_assets`)
+  - Active generations (pending/processing/queued) → placeholder cards with spinner + progress
+  - Failed generations (no `result_asset_id`) → error cards with inline error state
+- Remove the `Collapsible` + `GenerationHistorySection` import entirely
+- Remove `historyOpen` state
+- Replace the raw `previewUrl` dialog with `ImageDetailModal`
+- Track clicked item as `{ type: 'reference' | 'generation', ref?, generation? }` instead of just `previewUrl`
+- Normal-mode click opens `ImageDetailModal` with full context
 
-6. Regras de apresentação
-- Humanizar labels e status no painel.
-- Não expor chaves técnicas cruas como experiência principal; deixar valores brutos só na área técnica colapsável.
-- Mostrar loading/skeleton enquanto os detalhes da geração ativa carregam.
-- Tratar ausência de dados com `—` em vez de blocos vazios.
+#### 3. No changes to `GenerateBaseAnglesModal.tsx`
+Selection mode, preloading, and generation pipeline stay untouched.
 
-7. Arquivos a ajustar
-- `src/hooks/useGenerationStatus.ts`
-  - ampliar tipos e query para incluir os campos necessários
-- `src/pages/QuickFlow.tsx`
-  - estado do painel aberto/fechado
-  - botão overlay na imagem ativa
-  - hook de detalhes da geração ativa
-  - renderização do painel
-- Novo componente sugerido:
-  - `src/components/quick-flow/QuickFlowGenerationDetailsSheet.tsx`
-  - encapsula parsing dos dados, layout do painel e ações de copiar
+#### 4. Keep `GenerationHistorySection.tsx` file
+Just stop importing it. No deletion needed.
 
-8. Observações importantes do código atual
-- Hoje o Quick Flow só usa `useGenerationStatus(..., { skipDetails: true })`, então não há dados suficientes para o painel.
-- O `drawer.tsx` atual não atende ao requisito lateral; o `sheet.tsx` já entrega exatamente o comportamento pedido.
-- O histórico, lightbox e fluxo de geração não precisam ser alterados para esta feature.
+### Grid merge logic
+```text
+gridItems = [
+  ...activeGenerations.map(g => ({ type: 'generation', generation: g })),
+  ...avatar.references.map(r => ({ type: 'reference', ref: r, generation: matchedGen })),
+  ...failedGenerations.filter(notInRefs).map(g => ({ type: 'generation', generation: g })),
+]
+```
+Active generations appear first (top of grid). Failed without result appear at end.
+
+Match reference → generation via: find generation where `result_asset_id === ref.asset_id` or generation `reference_asset_id === ref.asset_id`.
+
+### `useAvatarGenerations` update
+Add `result_asset_id` to the select query so we can match generations to reference assets.
+
+### Files affected
+| File | Change |
+|---|---|
+| `src/components/avatar/ImageDetailModal.tsx` | **New** — rich image detail view |
+| `src/pages/AvatarDetails.tsx` | Merge grid, remove history section, use ImageDetailModal |
+| `src/hooks/useAvatarGenerations.ts` | Add `result_asset_id` to select |
+
+### Risks
+- If pipeline doesn't add completed results to `avatar_reference_assets`, completed generations would be invisible. Mitigation: also show completed generations without matching reference as grid items.
+- Polling for active generations already exists in `useAvatarGenerations` (3s interval when active). No new polling needed.
+

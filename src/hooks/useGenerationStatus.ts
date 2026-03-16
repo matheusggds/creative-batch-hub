@@ -17,6 +17,9 @@ interface GenerationFull {
   reference_asset_id: string;
   result_asset_id: string | null;
   retry_count: number;
+  pipeline_type: string;
+  source_mode: string | null;
+  tool_type: string | null;
 }
 
 interface GenerationJob {
@@ -29,6 +32,8 @@ interface GenerationJob {
   max_attempts: number;
   created_at: string;
   updated_at: string;
+  input_payload: Record<string, unknown>;
+  output_payload: Record<string, unknown>;
   error_payload: Record<string, unknown>;
 }
 
@@ -38,6 +43,7 @@ interface GenerationEvent {
   message: string | null;
   created_at: string;
   job_id: string | null;
+  payload: Record<string, unknown>;
 }
 
 export interface GenerationStatusData {
@@ -52,7 +58,7 @@ export function useGenerationStatus(generationId: string | null, options?: { ski
   const prevStatus = useRef<string | null>(null);
 
   const query = useQuery({
-    queryKey: ["generation_status", generationId],
+    queryKey: ["generation_status", generationId, skipDetails],
     enabled: !!generationId,
     refetchInterval: (query) => {
       const data = query.state.data as GenerationStatusData | undefined;
@@ -65,7 +71,7 @@ export function useGenerationStatus(generationId: string | null, options?: { ski
       const { data: gen, error: genErr } = await supabase
         .from("generations")
         .select(
-          "id, status, current_step, progress_pct, result_url, result_asset_id, error_code, created_at, started_at, finished_at, extracted_prompt, ai_parameters, reference_asset_id, retry_count"
+          "id, status, current_step, progress_pct, result_url, result_asset_id, error_code, created_at, started_at, finished_at, extracted_prompt, ai_parameters, reference_asset_id, retry_count, pipeline_type, source_mode, tool_type"
         )
         .eq("id", generationId!)
         .maybeSingle();
@@ -80,14 +86,14 @@ export function useGenerationStatus(generationId: string | null, options?: { ski
         const { data: jobsData } = await supabase
           .from("generation_jobs")
           .select(
-            "id, step, status, provider, model, attempt, max_attempts, created_at, updated_at, error_payload"
+            "id, step, status, provider, model, attempt, max_attempts, created_at, updated_at, input_payload, output_payload, error_payload"
           )
           .eq("generation_id", generationId!)
           .order("created_at", { ascending: true });
 
         const { data: eventsData } = await supabase
           .from("generation_events")
-          .select("id, type, message, created_at, job_id")
+          .select("id, type, message, created_at, job_id, payload")
           .eq("generation_id", generationId!)
           .order("created_at", { ascending: true });
 
@@ -103,7 +109,6 @@ export function useGenerationStatus(generationId: string | null, options?: { ski
     },
   });
 
-  // Refresh avatar gallery when generation completes
   useEffect(() => {
     const currentStatus = query.data?.generation.status ?? null;
     if (

@@ -7,6 +7,7 @@ import { useGenerationStatus } from "@/hooks/useGenerationStatus";
 import { useQuickFlowHistory, type HistorySession } from "@/hooks/useQuickFlowHistory";
 import { uploadAssetFile } from "@/lib/storage";
 import { AppHeader } from "@/components/AppHeader";
+import { QuickFlowGenerationDetailsSheet } from "@/components/quick-flow/QuickFlowGenerationDetailsSheet";
 import { QuickFlowHistory } from "@/components/quick-flow/QuickFlowHistory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,7 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -103,6 +105,7 @@ export default function QuickFlow() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   // Separate flag for reference lightbox
   const [refLightbox, setRefLightbox] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   // Session variations history (in-memory only)
   const [sessionVariations, setSessionVariations] = useState<SessionVariation[]>([]);
@@ -132,6 +135,9 @@ export default function QuickFlow() {
   // Single generation tracking (first generation only, no batch)
   const trackingId = step === "tracking" ? singleTrackingId : null;
   const { data: statusData } = useGenerationStatus(trackingId, { skipDetails: true });
+  const { data: activeVarDetails, isLoading: isActiveVarDetailsLoading } = useGenerationStatus(
+    detailsOpen ? selectedCompletedVar?.generationId ?? null : null
+  );
   const genStatus = statusData?.generation.status ?? null;
   const progressPct = statusData?.generation.progress_pct ?? 0;
 
@@ -288,6 +294,7 @@ export default function QuickFlow() {
     setSingleTrackingId(null);
     setGenError(null);
     setActionModal(null);
+    setDetailsOpen(false);
     setSessionVariations([]);
     setSelectedVarIndex(-1);
     setSelectedCount(1);
@@ -327,6 +334,7 @@ export default function QuickFlow() {
     setPreview(URL.createObjectURL(f));
     setSingleTrackingId(null);
     setGenError(null);
+    setDetailsOpen(false);
     setSessionVariations([]);
     setSelectedVarIndex(-1);
     setSelectedCount(1);
@@ -493,6 +501,7 @@ export default function QuickFlow() {
       setGenError(null);
       setSelectedCount(1);
       setPendingRestore(null);
+      setDetailsOpen(false);
 
       const vars: SessionVariation[] = session.variations.map((v) => ({
         generationId: v.generationId,
@@ -687,13 +696,25 @@ export default function QuickFlow() {
             {step === "tracking" && !singleTrackingId && pendingCount > 0 && (
               <div className="space-y-1.5">
                 {activeVar?.status === "completed" && activeVar.resultUrl ? (
-                  <button
-                    type="button"
-                    onClick={openVariationLightbox}
-                    className="rounded-lg border border-border/50 overflow-hidden bg-muted/10 w-full cursor-zoom-in"
-                  >
-                    <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full object-contain" style={IMG_STYLE} />
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={openVariationLightbox}
+                      className="rounded-lg border border-border/50 overflow-hidden bg-muted/10 w-full cursor-zoom-in"
+                    >
+                      <img src={activeVar.resultUrl} alt="Variação ativa" className="w-full object-contain" style={IMG_STYLE} />
+                    </button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      className="absolute right-2 top-2 h-8 w-8 border border-border/60 bg-background/80 backdrop-blur hover:bg-background"
+                      onClick={() => setDetailsOpen(true)}
+                    >
+                      <Info className="h-4 w-4" />
+                      <span className="sr-only">Ver detalhes da geração</span>
+                    </Button>
+                  </div>
                 ) : (
                   <div
                     className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-muted/10"
@@ -716,13 +737,26 @@ export default function QuickFlow() {
             {/* Completed: result image + thumbnail strip + actions */}
             {step === "completed" && resultUrl && (
               <>
-                <button
-                  type="button"
-                  onClick={openVariationLightbox}
-                  className="rounded-lg border border-border/50 overflow-hidden bg-muted/10 w-full cursor-zoom-in"
-                >
-                  <img src={resultUrl} alt="Variação gerada" className="w-full object-contain" style={IMG_STYLE} />
-                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={openVariationLightbox}
+                    className="rounded-lg border border-border/50 overflow-hidden bg-muted/10 w-full cursor-zoom-in"
+                  >
+                    <img src={resultUrl} alt="Variação gerada" className="w-full object-contain" style={IMG_STYLE} />
+                  </button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className="absolute right-2 top-2 h-8 w-8 border border-border/60 bg-background/80 backdrop-blur hover:bg-background"
+                    onClick={() => setDetailsOpen(true)}
+                    disabled={!selectedCompletedVar}
+                  >
+                    <Info className="h-4 w-4" />
+                    <span className="sr-only">Ver detalhes da geração</span>
+                  </Button>
+                </div>
 
                 <VariationThumbnailStrip
                   variations={sessionVariations}
@@ -970,6 +1004,13 @@ export default function QuickFlow() {
           )}
         </DialogContent>
       </Dialog>
+
+      <QuickFlowGenerationDetailsSheet
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        data={activeVarDetails}
+        isLoading={isActiveVarDetailsLoading}
+      />
     </div>
   );
 }
