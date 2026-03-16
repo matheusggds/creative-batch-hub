@@ -1,63 +1,56 @@
 
+Objetivo: aplicar apenas os fixes pendentes em Quick Flow e Avatar Workspace, sem mexer no layout principal, lightbox, drawer de detalhes ou backend.
 
-## Plan: Unify Avatar Library with Generation Timeline
+1. Quick Flow — trocar infinite scroll por botão “Carregar mais”
+- Arquivo: `src/components/quick-flow/QuickFlowHistory.tsx`
+- Remover `IntersectionObserver`, `useRef` e `useEffect` do histórico.
+- Manter a grid atual e substituir o sentinel por um botão centralizado abaixo da lista.
+- O botão:
+  - chama `fetchNextPage`
+  - usa estilo discreto/secundário
+  - mostra spinner enquanto `isFetchingNextPage`
+  - some quando `hasNextPage` for false
+- `src/hooks/useQuickFlowHistory.ts` já pagina em blocos de 12, então a lógica de dados pode permanecer praticamente igual.
 
-### Summary
-Remove the separate Generation History section. Show in-progress and failed generations as inline cards in the Avatar Library grid. Replace the raw image preview with a rich Image Detail Modal.
+2. Quick Flow — confirmar contagem do histórico só com `completed`
+- Arquivo: `src/hooks/useQuickFlowHistory.ts`
+- A contagem já está correta hoje: `variationCount` usa apenas itens com `status === "completed"` e com resultado válido.
+- Na implementação eu só manteria isso intacto e, se necessário, ajustaria comentários para refletir o comportamento real.
 
-### Changes
+3. Quick Flow — resetar seletor ao restaurar sessão
+- Arquivo: `src/pages/QuickFlow.tsx`
+- Isso também já está implementado em `applyRestore` com `setSelectedCount(1)`.
+- Não precisa mudar lógica; apenas preservar esse comportamento durante os demais ajustes.
 
-#### 1. New component: `src/components/avatar/ImageDetailModal.tsx`
-Rich modal for clicking any image card. Shows:
-- Large image preview (or placeholder for in-progress/error for failed)
-- Status badge, timestamp, shot/angle label
-- Whether image is original reference or generated
-- Reference images used (from `generation_reference_assets` via generation data)
-- Extracted prompt / debug info (collapsible)
-- Generation ID for debugging
-- Actions: "Use as Reference" (future), Close
+4. Quick Flow — thumbnails com scroll horizontal real e affordance visual
+- Arquivo: `src/pages/QuickFlow.tsx` no componente `VariationThumbnailStrip`
+- Manter uma única linha horizontal (`flex-nowrap` / `shrink-0` já está próximo disso).
+- Melhorar o container para:
+  - largura total da coluna
+  - `overflow-x-auto`
+  - impedir quebra em múltiplas linhas
+  - aplicar padding/spacing compacto
+- Adicionar um indicador sutil de continuidade horizontal:
+  - opção simples e segura: fade lateral à direita com gradiente sobreposto
+  - opcionalmente exibir também à esquerda quando houver scroll
+- Garantir que as thumbnails não “espremam” e continuem com largura fixa.
 
-#### 2. Refactor `src/pages/AvatarDetails.tsx`
-- Import and use `useAvatarGenerations` to get all generations for this avatar
-- Build a unified grid: reference assets + active/failed generation placeholders
-  - Completed generations already appear as references (pipeline adds to `avatar_reference_assets`)
-  - Active generations (pending/processing/queued) → placeholder cards with spinner + progress
-  - Failed generations (no `result_asset_id`) → error cards with inline error state
-- Remove the `Collapsible` + `GenerationHistorySection` import entirely
-- Remove `historyOpen` state
-- Replace the raw `previewUrl` dialog with `ImageDetailModal`
-- Track clicked item as `{ type: 'reference' | 'generation', ref?, generation? }` instead of just `previewUrl`
-- Normal-mode click opens `ImageDetailModal` with full context
+5. Avatar Workspace — typos
+- Busca no código atual não encontrou mais `imagemns` nem `geraçãoões`.
+- Os pontos anteriormente problemáticos já estão corretos:
+  - `src/pages/AvatarDetails.tsx`
+  - `src/components/avatar/NewGenerationModal.tsx`
+  - `src/components/avatar/GenerateBaseAnglesModal.tsx`
+- Portanto, não há correção real pendente aqui, apenas validar e não regredir.
 
-#### 3. No changes to `GenerateBaseAnglesModal.tsx`
-Selection mode, preloading, and generation pipeline stay untouched.
+Arquivos a ajustar
+- `src/components/quick-flow/QuickFlowHistory.tsx`
+- `src/pages/QuickFlow.tsx`
 
-#### 4. Keep `GenerationHistorySection.tsx` file
-Just stop importing it. No deletion needed.
-
-### Grid merge logic
-```text
-gridItems = [
-  ...activeGenerations.map(g => ({ type: 'generation', generation: g })),
-  ...avatar.references.map(r => ({ type: 'reference', ref: r, generation: matchedGen })),
-  ...failedGenerations.filter(notInRefs).map(g => ({ type: 'generation', generation: g })),
-]
-```
-Active generations appear first (top of grid). Failed without result appear at end.
-
-Match reference → generation via: find generation where `result_asset_id === ref.asset_id` or generation `reference_asset_id === ref.asset_id`.
-
-### `useAvatarGenerations` update
-Add `result_asset_id` to the select query so we can match generations to reference assets.
-
-### Files affected
-| File | Change |
-|---|---|
-| `src/components/avatar/ImageDetailModal.tsx` | **New** — rich image detail view |
-| `src/pages/AvatarDetails.tsx` | Merge grid, remove history section, use ImageDetailModal |
-| `src/hooks/useAvatarGenerations.ts` | Add `result_asset_id` to select |
-
-### Risks
-- If pipeline doesn't add completed results to `avatar_reference_assets`, completed generations would be invisible. Mitigation: also show completed generations without matching reference as grid items.
-- Polling for active generations already exists in `useAvatarGenerations` (3s interval when active). No new polling needed.
-
+Validação esperada após implementação
+- Histórico carrega 12 sessões iniciais e só busca mais ao clicar em “Carregar mais”.
+- O botão desaparece quando acabar a paginação.
+- As contagens do histórico continuam mostrando apenas gerações concluídas.
+- Restaurar uma sessão continua resetando o seletor para `1`.
+- Com muitas variações, a faixa de thumbnails permanece em uma única linha com scroll horizontal e indicação visual de que há mais itens fora da área visível.
+- Nenhuma mudança visual estrutural fora desses pontos.
