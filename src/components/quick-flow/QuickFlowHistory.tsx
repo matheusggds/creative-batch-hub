@@ -1,6 +1,6 @@
-import { useRef, useEffect } from "react";
 import { Loader2, Clock } from "lucide-react";
 import type { HistorySession } from "@/hooks/useQuickFlowHistory";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   sessions: HistorySession[];
@@ -19,25 +19,6 @@ export function QuickFlowHistory({
   onRestore,
   fetchNextPage,
 }: Props) {
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
-  // Infinite scroll via IntersectionObserver
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || !hasNextPage) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
-        }
-      },
-      { rootMargin: "0px 0px 300px 0px", threshold: 0 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -48,7 +29,7 @@ export function QuickFlowHistory({
 
   if (sessions.length === 0) {
     return (
-      <div className="text-center py-6">
+      <div className="py-6 text-center">
         <p className="text-sm text-muted-foreground/60">
           Suas gerações anteriores aparecerão aqui
         </p>
@@ -60,12 +41,12 @@ export function QuickFlowHistory({
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Clock className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Sessões anteriores
         </h2>
       </div>
 
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 gap-2">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8">
         {sessions.map((session) => (
           <SessionCard
             key={session.referenceAssetId}
@@ -75,11 +56,25 @@ export function QuickFlowHistory({
         ))}
       </div>
 
-      {/* Infinite scroll sentinel */}
-      <div ref={sentinelRef} className="h-1" />
-      {isFetchingNextPage && (
-        <div className="flex justify-center py-4">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      {hasNextPage && (
+        <div className="flex justify-center pt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="min-w-32"
+            onClick={fetchNextPage}
+            disabled={isFetchingNextPage}
+          >
+            {isFetchingNextPage ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Carregando...
+              </>
+            ) : (
+              "Carregar mais"
+            )}
+          </Button>
         </div>
       )}
     </div>
@@ -102,12 +97,11 @@ function SessionCard({
   return (
     <button
       onClick={onClick}
-      className="group rounded-lg border border-border/50 bg-card overflow-hidden hover:border-primary/50 transition-all text-left"
+      className="group overflow-hidden rounded-lg border border-border/50 bg-card text-left transition-all hover:border-primary/50"
     >
       <div className="relative w-full" style={{ paddingBottom: "177.78%" }}>
         <div className="absolute inset-0 flex">
-          {/* Left half: reference */}
-          <div className="w-1/2 h-full overflow-hidden">
+          <div className="h-full w-1/2 overflow-hidden">
             {session.referenceUrl ? (
               <img
                 src={session.referenceUrl}
@@ -121,8 +115,7 @@ function SessionCard({
               <div className="h-full w-full bg-muted/20" />
             )}
           </div>
-          {/* Right half: latest variation */}
-          <div className="w-1/2 h-full overflow-hidden border-l border-border/30">
+          <div className="h-full w-1/2 overflow-hidden border-l border-border/30">
             {session.latestResultUrl ? (
               <img
                 src={session.latestResultUrl}
@@ -137,12 +130,11 @@ function SessionCard({
             )}
           </div>
         </div>
-        <div className="absolute inset-0 bg-background/0 group-hover:bg-background/20 transition-colors" />
+        <div className="absolute inset-0 bg-background/0 transition-colors group-hover:bg-background/20" />
       </div>
       <div className="px-2 py-1.5">
-        <p className="text-xs text-muted-foreground truncate">
-          {session.variationCount} variação
-          {session.variationCount !== 1 ? "ões" : ""} · {dateStr}
+        <p className="truncate text-xs text-muted-foreground">
+          {session.variationCount} variaç{session.variationCount === 1 ? "ão" : "ões"} · {dateStr}
         </p>
       </div>
     </button>
