@@ -4,8 +4,10 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useGenerationStatus } from "@/hooks/useGenerationStatus";
+import { useQuickFlowHistory, type HistorySession } from "@/hooks/useQuickFlowHistory";
 import { uploadAssetFile } from "@/lib/storage";
 import { AppHeader } from "@/components/AppHeader";
+import { QuickFlowHistory } from "@/components/quick-flow/QuickFlowHistory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +20,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Upload,
   Loader2,
@@ -86,6 +98,9 @@ export default function QuickFlow() {
 
   // Quantity selector for batch generation
   const [selectedCount, setSelectedCount] = useState<number>(1);
+
+  // Restore confirmation state
+  const [pendingRestore, setPendingRestore] = useState<HistorySession | null>(null);
 
   // Single tracking id for the first generation (no batch)
   const [singleTrackingId, setSingleTrackingId] = useState<string | null>(null);
@@ -403,6 +418,58 @@ export default function QuickFlow() {
     onError: () => toast.error("Erro ao criar avatar."),
   });
 
+  // History hook — excludes the currently active reference asset
+  const {
+    sessions: historySessions,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: historyLoading,
+  } = useQuickFlowHistory(assetId);
+
+  // Restore a session from history
+  const applyRestore = useCallback(
+    (session: HistorySession) => {
+      if (preview) URL.revokeObjectURL(preview);
+      setPreview(session.referenceUrl);
+      setAssetId(session.referenceAssetId);
+      setAssetUrl(session.referenceUrl);
+      setSingleTrackingId(null);
+      setGenError(null);
+      setSelectedCount(1);
+      setPendingRestore(null);
+
+      const vars: SessionVariation[] = session.variations.map((v) => ({
+        generationId: v.generationId,
+        status: "completed" as const,
+        resultUrl: v.resultUrl,
+        resultAssetId: v.resultAssetId,
+      }));
+      setSessionVariations(vars);
+      setSelectedVarIndex(vars.length > 0 ? 0 : -1);
+      setStep("completed");
+
+      // Invalidate history so it re-fetches (the restored session will now be excluded)
+      qc.invalidateQueries({ queryKey: ["quick_flow_history"] });
+    },
+    [preview, qc]
+  );
+
+  const handleRestore = useCallback(
+    (session: HistorySession) => {
+      if (preview && step !== "idle") {
+        setPendingRestore(session);
+        return;
+      }
+      applyRestore(session);
+    },
+    [preview, step, applyRestore]
+  );
+
+  const confirmRestore = useCallback(() => {
+    if (pendingRestore) applyRestore(pendingRestore);
+  }, [pendingRestore, applyRestore]);
+
   const handleDownload = async () => {
     const url = activeVar?.resultUrl;
     if (!url) return;
@@ -683,6 +750,16 @@ export default function QuickFlow() {
             </Button>
           </div>
         )}
+
+        {/* History section */}
+        <QuickFlowHistory
+          sessions={historySessions}
+          hasNextPage={!!hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          isLoading={historyLoading}
+          onRestore={handleRestore}
+          fetchNextPage={fetchNextPage}
+        />
       </main>
 
       {/* Headless batch trackers */}
@@ -703,6 +780,27 @@ export default function QuickFlow() {
         onSubmit={(name) => createAvatarMutation.mutate(name)}
         resultUrl={resultUrl}
       />
+
+      {/* Restore confirmation dialog */}
+      <AlertDialog
+        open={!!pendingRestore}
+        onOpenChange={(open) => {
+          if (!open) setPendingRestore(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Trocar sessão?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem uma imagem carregada. Deseja trocar para esta sessão do histórico?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRestore}>Trocar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
