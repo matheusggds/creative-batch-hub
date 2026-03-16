@@ -739,7 +739,7 @@ export default function QuickFlow() {
                         onClick={() => setSelectedCount(n)}
                         disabled={pendingCount > 0 || generateMutation.isPending}
                         className={cn(
-                          "h-7 w-7 rounded-md text-xs font-medium transition-colors shrink-0",
+                          "h-7 w-7 rounded-md text-xs font-medium transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed",
                           n === selectedCount
                             ? "bg-primary text-primary-foreground"
                             : "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
