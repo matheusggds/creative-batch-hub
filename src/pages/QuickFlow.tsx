@@ -543,6 +543,8 @@ export default function QuickFlow() {
 
   const showMainButton = step === "ready" || step === "generating" || (step === "tracking" && !!singleTrackingId);
   const hasCompletedSource = completedVars.length > 0;
+  const hasGenerationInProgress =
+    generateMutation.isPending || step === "generating" || step === "tracking";
 
   // Pending variation IDs for batch tracking
   const pendingVariationIds = sessionVariations
