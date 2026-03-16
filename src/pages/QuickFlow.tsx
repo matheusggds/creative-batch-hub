@@ -582,7 +582,7 @@ export default function QuickFlow() {
 
             {/* Empty state */}
             {(step === "idle" || step === "uploading" || step === "ready") && !hasCompletedSource && (
-              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/10 aspect-square">
+              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/10 aspect-[9/16]">
                 <Sparkles className="h-10 w-10 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground/60 text-center px-4">
                   {step === "ready"
