@@ -349,7 +349,7 @@ export default function AvatarDetails() {
               </span>
               <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs h-7">
                 <Check className="h-3 w-3 mr-1" />
-                {selectedIds.size === refCount ? "Desmarcar todas" : "Selecionar todas"}
+                {selectedIds.size === completedImageCount ? "Desmarcar todas" : "Selecionar todas"}
               </Button>
               {hasSelection && (
                 <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="text-xs h-7">
