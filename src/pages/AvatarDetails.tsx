@@ -98,27 +98,21 @@ export default function AvatarDetails() {
     }
   };
 
-  // Delete single image mutation
+  // Delete single image mutation (via Edge Function)
   const deleteImageMutation = useMutation({
-    mutationFn: async ({ refId, assetId }: { refId: string; assetId: string }) => {
-      const { error: refErr } = await supabase
-        .from("avatar_reference_assets")
-        .delete()
-        .eq("id", refId);
-      if (refErr) throw refErr;
-
-      const { error: assetErr } = await supabase
-        .from("assets")
-        .delete()
-        .eq("id", assetId);
-      if (assetErr) throw assetErr;
+    mutationFn: async ({ assetId }: { refId: string; assetId: string }) => {
+      const { data, error } = await supabase.functions.invoke("delete-asset", {
+        body: { assetId, deleteMode: "asset" },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error("Delete failed");
     },
     onSuccess: () => {
       toast.success("Imagem excluída.");
       qc.invalidateQueries({ queryKey: ["avatar_profile", id] });
       qc.invalidateQueries({ queryKey: ["avatar_generations", id] });
     },
-    onError: () => toast.error("Erro ao excluir imagem."),
+    onError: () => toast.error("Não foi possível excluir a imagem. Tente novamente."),
   });
 
   // Delete avatar mutation
