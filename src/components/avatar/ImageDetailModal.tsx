@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { humanizeStep, friendlyErrorCode } from "@/lib/generation-utils";
 import {
   ImageIcon,
   Loader2,
@@ -130,6 +131,8 @@ function getSourceModeLabel(mode: string | null): string | null {
     text_to_image: "Texto → Imagem",
     image_to_image: "Imagem → Imagem",
     reference_based: "Baseado em Referência",
+    avatar_workspace: "Avatar Workspace",
+    quick_flow: "Quick Flow",
   };
   return map[mode] ?? mode.replace(/_/g, " ");
 }
@@ -140,6 +143,7 @@ function getPipelineLabel(pt: string | null): string {
     text_to_image: "Texto → Imagem",
     image_to_image: "Imagem → Imagem",
     avatar_base_angles: "Ângulos Base do Avatar",
+    multimodal_image_generation: "Geração de imagem",
   };
   return map[pt] ?? pt.replace(/_/g, " ");
 }
@@ -310,7 +314,7 @@ export function ImageDetailModal({ open, onOpenChange, item, navigableCount = 0,
               <div className="flex flex-col items-center gap-3 text-muted-foreground p-6">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <span className="text-sm font-medium">
-                  {generation!.current_step ?? "Processando…"}
+                  {humanizeStep(generation!.current_step)}
                 </span>
                 {generation!.progress_pct > 0 && (
                   <Progress value={generation!.progress_pct} className="w-40 h-2" />
@@ -319,12 +323,7 @@ export function ImageDetailModal({ open, onOpenChange, item, navigableCount = 0,
             ) : isFailed ? (
               <div className="flex flex-col items-center gap-2 text-destructive p-6">
                 <AlertTriangle className="h-10 w-10" />
-                <span className="text-sm font-medium">Geração falhou</span>
-                {generation?.error_code && (
-                  <code className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                    {generation.error_code}
-                  </code>
-                )}
+                <span className="text-sm font-medium">{friendlyErrorCode(generation?.error_code)}</span>
               </div>
             ) : imageUrl ? (
               <img

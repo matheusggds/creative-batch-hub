@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { NewGenerationModal } from "@/components/avatar/NewGenerationModal";
 import { ImageDetailModal, GridItem } from "@/components/avatar/ImageDetailModal";
 import { useParams, useNavigate } from "react-router-dom";
@@ -6,7 +6,7 @@ import { useAvatarProfile } from "@/hooks/useAvatarProfile";
 import { useAvatarGenerations, AvatarGeneration } from "@/hooks/useAvatarGenerations";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getShortModelName, extractModelInfo, relativeTime, getModelBadgeClasses } from "@/lib/generation-utils";
+import { getShortModelName, extractModelInfo, relativeTime, getModelBadgeClasses, humanizeStep, friendlyErrorCode } from "@/lib/generation-utils";
 
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -44,15 +44,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   archived: { label: "Arquivado", variant: "outline" },
 };
 
-const STEP_LABELS: Record<string, string> = {
-  generate_image: "Gerando imagem...",
-  extract_prompt: "Analisando imagem...",
-};
-
-function humanizeStep(step: string | null): string {
-  if (!step) return "Processando…";
-  return STEP_LABELS[step] ?? "Processando...";
-}
+// humanizeStep is now imported from generation-utils
 
 export default function AvatarDetails() {
   const { id } = useParams<{ id: string }>();
@@ -217,6 +209,14 @@ export default function AvatarDetails() {
     }
   }, [navigableItems]);
 
+  // Count only visible images: references with file_url + completed generations with result_url
+  const completedImageCount = useMemo(() => {
+    return gridItems.filter((item) => {
+      if (item.type === "reference") return !!item.ref.file_url;
+      return item.generation.status === "completed" && !!item.generation.result_url;
+    }).length;
+  }, [gridItems]);
+
   const handleCardClick = (item: GridItem) => {
     if (selectionMode && item.type === "reference") {
       toggleSelect(item.ref.asset_id);
@@ -266,7 +266,6 @@ export default function AvatarDetails() {
 
   const status = statusConfig[avatar.status] ?? { label: avatar.status, variant: "outline" as const };
   const hasSelection = selectedIds.size > 0;
-  const refCount = avatar.references.length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -295,7 +294,7 @@ export default function AvatarDetails() {
               </div>
               <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
                 <Images className="h-4 w-4" />
-                <span>{refCount} imagem{refCount !== 1 ? "ns" : ""}</span>
+                <span>{completedImageCount} {completedImageCount === 1 ? "imagem" : "imagens"}</span>
               </div>
             </div>
 
@@ -320,7 +319,7 @@ export default function AvatarDetails() {
         {/* Gallery Header */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-lg font-semibold">Biblioteca do Avatar</h2>
-          {refCount > 0 && (
+          {completedImageCount > 0 && (
             <Button
               variant={selectionMode ? "secondary" : "outline"}
               size="sm"
@@ -351,7 +350,7 @@ export default function AvatarDetails() {
               </span>
               <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs h-7">
                 <Check className="h-3 w-3 mr-1" />
-                {selectedIds.size === refCount ? "Desmarcar todas" : "Selecionar todas"}
+                {selectedIds.size === completedImageCount ? "Desmarcar todas" : "Selecionar todas"}
               </Button>
               {hasSelection && (
                 <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="text-xs h-7">
@@ -398,6 +397,7 @@ export default function AvatarDetails() {
                   key={`gen-${item.generation.id}`}
                   item={item}
                   onClick={() => handleCardClick(item)}
+                  onDelete={(target) => setDeleteImageTarget(target)}
                 />
               );
             })}
@@ -633,9 +633,11 @@ function ReferenceCard({
 function GenerationCard({
   item,
   onClick,
+  onDelete,
 }: {
   item: GridItem & { type: "generation" };
   onClick: () => void;
+  onDelete: (target: { refId: string; assetId: string }) => void;
 }) {
   const gen = item.generation;
   const isActive = ["pending", "queued", "processing"].includes(gen.status);
@@ -646,18 +648,61 @@ function GenerationCard({
   const shortModel = getShortModelName(imageModel, thinkingLevel);
   const timeLabel = relativeTime(gen.created_at);
 
+  // Stall detection: if active for >90s, show stalled state
+  const [isStalled, setIsStalled] = useState(false);
+  useEffect(() => {
+    if (!isActive) { setIsStalled(false); return; }
+    const createdMs = new Date(gen.created_at).getTime();
+    const elapsedMs = Date.now() - createdMs;
+    const remainingMs = Math.max(0, 90_000 - elapsedMs);
+    if (elapsedMs >= 90_000) { setIsStalled(true); return; }
+    const timer = setTimeout(() => setIsStalled(true), remainingMs);
+    return () => clearTimeout(timer);
+  }, [isActive, gen.created_at]);
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete({
+      refId: gen.id,
+      assetId: gen.result_asset_id ?? gen.id,
+    });
+  };
+
   return (
     <div
       className={`group relative aspect-square rounded-lg border overflow-hidden cursor-pointer transition-all ${
-        isActive
+        isActive && !isStalled
           ? "border-primary/40 bg-primary/5"
-          : isFailed
+          : isFailed || isStalled
           ? "border-destructive/40 bg-destructive/5"
           : "border-border/50 bg-muted hover:border-border"
       }`}
       onClick={onClick}
     >
-      {isActive ? (
+      {/* Delete button — always available on hover */}
+      <button
+        onClick={handleDelete}
+        className="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 rounded-md bg-destructive/80 backdrop-blur-sm p-1 hover:bg-destructive text-destructive-foreground"
+        title="Excluir"
+      >
+        <Trash2 className="h-3 w-3" />
+      </button>
+
+      {isStalled ? (
+        <div className="flex flex-col items-center justify-center h-full gap-2 p-3">
+          <AlertTriangle className="h-6 w-6 text-destructive" />
+          <span className="text-[10px] text-destructive text-center leading-tight">A geração parece travada</span>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-6 text-[10px] px-2"
+            onClick={handleDelete}
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Excluir
+          </Button>
+        </div>
+      ) : isActive ? (
         <div className="flex flex-col items-center justify-center h-full gap-2 p-3">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <span className="text-[10px] text-muted-foreground text-center leading-tight">
@@ -675,7 +720,9 @@ function GenerationCard({
       ) : isFailed ? (
         <div className="flex flex-col items-center justify-center h-full gap-2 p-3">
           <AlertTriangle className="h-6 w-6 text-destructive" />
-          <span className="text-[10px] text-destructive text-center leading-tight">Falhou</span>
+          <span className="text-[10px] text-destructive text-center leading-tight">
+            {friendlyErrorCode(gen.error_code)}
+          </span>
           {shotLabel && (
             <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
               {shotLabel}

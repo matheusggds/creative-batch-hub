@@ -722,7 +722,7 @@ export default function QuickFlow() {
                   >
                     <Loader2 className="h-10 w-10 animate-spin text-primary" />
                     <p className="text-sm text-muted-foreground">
-                      Gerando {pendingCount} variação{pendingCount > 1 ? "ões" : ""}…
+                      Gerando {pendingCount} {pendingCount === 1 ? "variação" : "variações"}…
                     </p>
                   </div>
                 )}
@@ -785,7 +785,7 @@ export default function QuickFlow() {
                     <Button
                       size="sm"
                       className="flex-1 gap-1.5 h-7 text-xs"
-                      disabled={pendingCount > 0 || generateMutation.isPending || !activeVar}
+                      disabled={hasGenerationInProgress || !activeVar}
                       onClick={handleGenerateVariations}
                     >
                       {pendingCount > 0 ? (

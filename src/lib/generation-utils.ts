@@ -84,3 +84,64 @@ export function relativeTime(dateStr: string | null | undefined): string | null 
     return null;
   }
 }
+
+/**
+ * Humanize a generation step name for the UI.
+ */
+const STEP_LABELS_MAP: Record<string, string> = {
+  generate_image: "Gerando imagem...",
+  extract_prompt: "Analisando imagem...",
+  gemini_multimodal_generation: "Gerando imagem...",
+  upload_result: "Salvando resultado...",
+};
+
+export function humanizeStep(step: string | null): string {
+  if (!step) return "Processando…";
+  return STEP_LABELS_MAP[step] ?? "Processando...";
+}
+
+/**
+ * Translate error codes to friendly Portuguese messages.
+ */
+const ERROR_MAP: Record<string, string> = {
+  gemini_multimodal_generation_failed: "A geração falhou. Tente novamente.",
+  gemini_generation_failed: "A geração falhou. Tente novamente.",
+  provider_timeout_50s: "A geração demorou demais. Tente novamente.",
+  provider_timeout_60s: "A geração demorou demais. Tente novamente.",
+  provider_timeout: "A geração demorou demais. Tente novamente.",
+  "non-2xx": "A geração falhou. Tente novamente.",
+};
+
+export function friendlyErrorCode(code?: string | null): string {
+  if (!code) return "Ocorreu um erro. Tente novamente.";
+  return ERROR_MAP[code] ?? "Ocorreu um erro. Tente novamente.";
+}
+
+/**
+ * Humanize pipeline type for the inspector summary.
+ */
+export function humanizePipeline(pt: string | null): string {
+  if (!pt) return "—";
+  const map: Record<string, string> = {
+    text_to_image: "Texto → Imagem",
+    image_to_image: "Imagem → Imagem",
+    avatar_base_angles: "Ângulos Base do Avatar",
+    multimodal_image_generation: "Geração de imagem",
+  };
+  return map[pt] ?? pt.replace(/_/g, " ");
+}
+
+/**
+ * Humanize source mode for the inspector.
+ */
+export function humanizeSourceMode(mode: string | null): string | null {
+  if (!mode) return null;
+  const map: Record<string, string> = {
+    text_to_image: "Texto → Imagem",
+    image_to_image: "Imagem → Imagem",
+    reference_based: "Baseado em Referência",
+    avatar_workspace: "Avatar Workspace",
+    quick_flow: "Quick Flow",
+  };
+  return map[mode] ?? mode.replace(/_/g, " ");
+}

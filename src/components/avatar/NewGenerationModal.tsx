@@ -483,7 +483,7 @@ function ReviewStep({
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Referências</span>
-          <span className="font-medium">{referenceCount} imagem{referenceCount !== 1 ? "ns" : ""}</span>
+          <span className="font-medium">{referenceCount} {referenceCount === 1 ? "imagem" : "imagens"}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Ângulos</span>
