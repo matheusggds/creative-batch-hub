@@ -130,6 +130,8 @@ function getSourceModeLabel(mode: string | null): string | null {
     text_to_image: "Texto → Imagem",
     image_to_image: "Imagem → Imagem",
     reference_based: "Baseado em Referência",
+    avatar_workspace: "Avatar Workspace",
+    quick_flow: "Quick Flow",
   };
   return map[mode] ?? mode.replace(/_/g, " ");
 }
@@ -140,6 +142,7 @@ function getPipelineLabel(pt: string | null): string {
     text_to_image: "Texto → Imagem",
     image_to_image: "Imagem → Imagem",
     avatar_base_angles: "Ângulos Base do Avatar",
+    multimodal_image_generation: "Geração de imagem",
   };
   return map[pt] ?? pt.replace(/_/g, " ");
 }
