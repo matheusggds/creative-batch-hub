@@ -6,7 +6,7 @@ import { useAvatarProfile } from "@/hooks/useAvatarProfile";
 import { useAvatarGenerations, AvatarGeneration } from "@/hooks/useAvatarGenerations";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getShortModelName, extractModelInfo, relativeTime } from "@/lib/generation-utils";
+import { getShortModelName, extractModelInfo, relativeTime, getModelBadgeClasses } from "@/lib/generation-utils";
 
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -594,7 +594,7 @@ function ReferenceCard({
             </Badge>
           ) : null}
           {shortModel && !isOriginal && (
-            <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-background/60 backdrop-blur-sm border-border/40 text-muted-foreground font-normal">
+            <Badge variant="outline" className={`text-[8px] px-1 py-0 h-3.5 backdrop-blur-sm font-medium ${getModelBadgeClasses(shortModel)}`}>
               {shortModel}
             </Badge>
           )}
@@ -610,12 +610,6 @@ function ReferenceCard({
         </div>
       )}
 
-      {/* Bottom label overlay (hover) */}
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-2 pb-1.5 pt-6 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-        <span className="text-[10px] font-medium text-white leading-tight line-clamp-1">
-          {shotLabel ?? (isOriginal ? "Referência Original" : "Imagem Gerada")}
-        </span>
-      </div>
 
       {selectionMode && (
         <div className={`absolute top-2 left-2 transition-opacity ${isSelected ? "opacity-100" : "opacity-60 group-hover:opacity-100"}`}>
@@ -704,7 +698,7 @@ function GenerationCard({
               </Badge>
             )}
             {shortModel && (
-              <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-background/60 backdrop-blur-sm border-border/40 text-muted-foreground font-normal">
+              <Badge variant="outline" className={`text-[8px] px-1 py-0 h-3.5 backdrop-blur-sm font-medium ${getModelBadgeClasses(shortModel)}`}>
                 {shortModel}
               </Badge>
             )}
@@ -718,11 +712,6 @@ function GenerationCard({
             </div>
           )}
           <DownloadButton url={gen.result_url} name={shotLabel ?? "gerada"} />
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-2 pb-1.5 pt-6 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-            <span className="text-[10px] font-medium text-white leading-tight line-clamp-1">
-              {shotLabel ?? "Imagem Gerada"}
-            </span>
-          </div>
         </>
       ) : (
         <div className="flex h-full w-full items-center justify-center">

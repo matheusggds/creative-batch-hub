@@ -1,5 +1,4 @@
-import { formatDistanceToNowStrict, differenceInMinutes, differenceInHours, differenceInDays, format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { differenceInMinutes, differenceInHours, differenceInDays, format } from "date-fns";
 
 /**
  * Short friendly model name for badges on cards.
@@ -16,6 +15,22 @@ export function getShortModelName(
     return "Flash";
   }
   return imageModel.split("/").pop()?.slice(0, 12) ?? imageModel;
+}
+
+/**
+ * Tailwind classes for model badge background color.
+ */
+export function getModelBadgeClasses(shortName: string | null): string {
+  switch (shortName) {
+    case "Pro":
+      return "bg-purple-800/80 border-purple-600/50 text-white";
+    case "High":
+      return "bg-blue-800/80 border-blue-600/50 text-white";
+    case "Fast":
+      return "bg-emerald-800/80 border-emerald-600/50 text-white";
+    default:
+      return "bg-zinc-700/80 border-zinc-500/50 text-white";
+  }
 }
 
 /**
