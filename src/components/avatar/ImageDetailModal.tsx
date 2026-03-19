@@ -216,7 +216,7 @@ function MetaRow({ icon: Icon, label, children }: { icon: React.ElementType; lab
   );
 }
 
-export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalProps) {
+export function ImageDetailModal({ open, onOpenChange, item, navigableCount = 0, currentIndex = -1, onNavigate }: ImageDetailModalProps) {
   const [debugOpen, setDebugOpen] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
