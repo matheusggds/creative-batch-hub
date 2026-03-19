@@ -722,7 +722,7 @@ export default function QuickFlow() {
                   >
                     <Loader2 className="h-10 w-10 animate-spin text-primary" />
                     <p className="text-sm text-muted-foreground">
-                      Gerando {pendingCount} variação{pendingCount > 1 ? "ões" : ""}…
+                      Gerando {pendingCount} {pendingCount === 1 ? "variação" : "variações"}…
                     </p>
                   </div>
                 )}
