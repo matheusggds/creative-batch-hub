@@ -186,6 +186,8 @@ export function NewGenerationModal({
       toast.success(`${data.length} ${data.length === 1 ? "geração criada com sucesso" : "gerações criadas com sucesso"}!`);
       qc.invalidateQueries({ queryKey: ["avatar_generations", avatarProfileId] });
       if (data[0]?.generationId) onGenerationCreated?.(data[0].generationId);
+      reset();
+      onOpenChange(false);
     },
     onError: (err: Error) => {
       toast.error("Erro ao criar gerações.");
