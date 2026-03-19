@@ -141,59 +141,61 @@ export function NewGenerationModal({
   const selectedModel = IMAGE_MODELS.find((m) => m.id === selectedModelId)!;
 
   // --- Mutation ---
-  const mutation = useMutation({
-    mutationFn: async () => {
-      if (!user) throw new Error("Not authenticated");
-      const referenceAssetIds = Array.from(selectedRefIds).filter((id) => availableReferenceIds.has(id));
-      const shotIds = Array.from(selectedShotIds);
+  const handleGenerate = () => {
+    if (!user) return;
+    const referenceAssetIds = Array.from(selectedRefIds).filter((id) => availableReferenceIds.has(id));
+    const shotIds = Array.from(selectedShotIds);
+    const model = { ...selectedModel };
+    const focus = focusPiece.trim() || undefined;
+    const shotCount = shotIds.length;
 
-      if (referenceAssetIds.length < 1) throw new Error("Selecione ao menos 1 imagem de referência.");
-      if (shotIds.length < 1) throw new Error("Selecione ao menos 1 ângulo.");
+    if (referenceAssetIds.length < 1 || shotIds.length < 1) return;
 
-      const results = await Promise.all(
-        shotIds.map(async (shotId) => {
-          const input: Record<string, unknown> = {
-            shotId,
-            focusPiece: focusPiece.trim() || undefined,
-            image_model: selectedModel.image_model,
-            promptPackId: "ugc-avatar-reference-pack-v1",
-          };
-          if (selectedModel.thinking_level) {
-            input.thinking_level = selectedModel.thinking_level;
-          }
+    // Close modal immediately
+    reset();
+    onOpenChange(false);
+    toast.info(`Criando ${shotCount} ${shotCount === 1 ? "geração" : "gerações"}…`);
 
-          const { data, error } = await supabase.functions.invoke("create-generation", {
-            body: {
-              toolType: "avatar_base_pack_generation",
-              pipelineType: "multimodal_image_generation",
-              sourceMode: "avatar_workspace",
-              avatarProfileId,
-              referenceAssetIds,
-              input,
-            },
-          });
-          if (error) {
-            console.error(`create-generation error for shot ${shotId}:`, error);
-            throw new Error(`Falha ao criar geração para ${SHOT_LIST.find((s) => s.id === shotId)?.label ?? shotId}`);
-          }
-          return data as { generationId: string };
-        })
-      );
-      return results;
-    },
-    onSuccess: (data) => {
-      setCreatedCount(data.length);
-      toast.success(`${data.length} ${data.length === 1 ? "geração criada com sucesso" : "gerações criadas com sucesso"}!`);
-      qc.invalidateQueries({ queryKey: ["avatar_generations", avatarProfileId] });
-      if (data[0]?.generationId) onGenerationCreated?.(data[0].generationId);
-      reset();
-      onOpenChange(false);
-    },
-    onError: (err: Error) => {
-      toast.error("Erro ao criar gerações.");
-      console.error("NewGenerationModal error:", err);
-    },
-  });
+    // Fire requests in background
+    Promise.all(
+      shotIds.map(async (shotId) => {
+        const input: Record<string, unknown> = {
+          shotId,
+          focusPiece: focus,
+          image_model: model.image_model,
+          promptPackId: "ugc-avatar-reference-pack-v1",
+        };
+        if (model.thinking_level) {
+          input.thinking_level = model.thinking_level;
+        }
+
+        const { data, error } = await supabase.functions.invoke("create-generation", {
+          body: {
+            toolType: "avatar_base_pack_generation",
+            pipelineType: "multimodal_image_generation",
+            sourceMode: "avatar_workspace",
+            avatarProfileId,
+            referenceAssetIds,
+            input,
+          },
+        });
+        if (error) {
+          console.error(`create-generation error for shot ${shotId}:`, error);
+          throw error;
+        }
+        return data as { generationId: string };
+      })
+    )
+      .then((results) => {
+        toast.success(`${results.length} ${results.length === 1 ? "geração criada com sucesso" : "gerações criadas com sucesso"}!`);
+        qc.invalidateQueries({ queryKey: ["avatar_generations", avatarProfileId] });
+        if (results[0]?.generationId) onGenerationCreated?.(results[0].generationId);
+      })
+      .catch((err) => {
+        toast.error("Erro ao criar gerações.");
+        console.error("NewGenerationModal error:", err);
+      });
+  };
 
   // --- Step navigation helpers ---
   const canAdvance = (): boolean => {
