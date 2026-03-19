@@ -546,6 +546,20 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
                         </>
                       )}
 
+                      {models.image_model_raw && (
+                        <>
+                          <span className="font-medium">Image Model</span>
+                          <span className="font-mono text-[10px]">{models.image_model_raw}</span>
+                        </>
+                      )}
+
+                      {models.thinking_level && (
+                        <>
+                          <span className="font-medium">Thinking Level</span>
+                          <span className="font-mono text-[10px]">{models.thinking_level}</span>
+                        </>
+                      )}
+
                       {rawShotLabel && (
                         <>
                           <span className="font-medium">Shot ID</span>
