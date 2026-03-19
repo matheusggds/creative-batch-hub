@@ -139,9 +139,19 @@ function getPipelineLabel(pt: string | null): string {
   return map[pt] ?? pt.replace(/_/g, " ");
 }
 
-function getModelUsed(gen?: AvatarGeneration): { prompt_model: string | null; image_model: string | null } {
+function getFriendlyModelName(model?: string | null, thinkingLevel?: string | null): string {
+  if (!model) return "Desconhecido";
+  if (model === "gemini-3-pro-image-preview") return "Nano Banana Pro";
+  if (model === "gemini-3.1-flash-image-preview") {
+    if (thinkingLevel === "high") return "Nano Banana 2 High";
+    if (thinkingLevel === "minimal") return "Nano Banana 2 Fast";
+    return "Nano Banana 2";
+  }
+  return model;
+}
+
+function getModelUsed(gen?: AvatarGeneration): { prompt_model: string | null; image_model: string | null; image_model_raw: string | null; thinking_level: string | null } {
   const debug = getAiParam(gen, "_debug") as Record<string, unknown> | null;
-  // New pipeline: gemini_model_used at top level or _debug.lastModelUsed
   const geminiModel = getAiParam(gen, "gemini_model_used");
   const imageModel = geminiModel
     ? String(geminiModel)
@@ -151,13 +161,18 @@ function getModelUsed(gen?: AvatarGeneration): { prompt_model: string | null; im
     ? String(debug.image_model)
     : null;
   
-  // Prompt model: new pipeline uses GPT-4o via separate step, legacy has openai_raw_response
+  const thinkingLevel = getAiParam(gen, "thinking_level")
+    ? String(getAiParam(gen, "thinking_level"))
+    : debug?.thinking_level
+    ? String(debug.thinking_level)
+    : null;
+
   const hasOpenaiResponse = !!getAiParam(gen, "openai_raw_response");
   const lastProvider = debug?.lastProvider ? String(debug.lastProvider) : null;
   const promptModel = hasOpenaiResponse ? "GPT-4o" 
     : (lastProvider === "google" ? null : (debug?.prompt_model ? String(debug.prompt_model) : null));
 
-  return { prompt_model: promptModel, image_model: imageModel };
+  return { prompt_model: promptModel, image_model: imageModel, image_model_raw: imageModel, thinking_level: thinkingLevel };
 }
 
 function getPromptText(gen?: AvatarGeneration): string | null {
@@ -256,7 +271,7 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
     if (refCount && refCount > 0) {
       summaryParts.push(`${refCount} referência${refCount > 1 ? "s" : ""} usada${refCount > 1 ? "s" : ""}`);
     }
-    if (models.image_model) summaryParts.push(`Modelo: ${models.image_model}`);
+    if (models.image_model) summaryParts.push(`Modelo: ${getFriendlyModelName(models.image_model, models.thinking_level)}`);
   }
 
   return (
@@ -361,7 +376,7 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
 
                   {models.image_model && (
                     <MetaRow icon={Cpu} label="Modelo de imagem">
-                      <span className="font-mono text-[11px]">{models.image_model}</span>
+                      <span className="text-[11px]">{getFriendlyModelName(models.image_model, models.thinking_level)}</span>
                     </MetaRow>
                   )}
 
@@ -528,6 +543,20 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
                         <>
                           <span className="font-medium">Erro</span>
                           <span className="text-destructive">{generation.error_code}</span>
+                        </>
+                      )}
+
+                      {models.image_model_raw && (
+                        <>
+                          <span className="font-medium">Image Model</span>
+                          <span className="font-mono text-[10px]">{models.image_model_raw}</span>
+                        </>
+                      )}
+
+                      {models.thinking_level && (
+                        <>
+                          <span className="font-medium">Thinking Level</span>
+                          <span className="font-mono text-[10px]">{models.thinking_level}</span>
                         </>
                       )}
 
