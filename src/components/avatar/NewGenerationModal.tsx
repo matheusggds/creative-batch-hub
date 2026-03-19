@@ -374,11 +374,17 @@ export function NewGenerationModal({
                   Avançar <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
               ) : (
-                <Button onClick={() => mutation.mutate()} disabled={!canAdvance() || mutation.isPending} className="gap-2">
-                  {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {mutation.isPending
-                    ? "Gerando…"
-                    : `Gerar ${selectedShotIds.size} Ângulo${selectedShotIds.size !== 1 ? "s" : ""}`}
+                <Button
+                  onClick={() => {
+                    // Close modal immediately, fire generation in background
+                    reset();
+                    onOpenChange(false);
+                    mutation.mutate();
+                  }}
+                  disabled={!canAdvance() || mutation.isPending}
+                  className="gap-2"
+                >
+                  {`Gerar ${selectedShotIds.size} Ângulo${selectedShotIds.size !== 1 ? "s" : ""}`}
                 </Button>
               )}
             </DialogFooter>
