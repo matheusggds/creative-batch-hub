@@ -698,7 +698,7 @@ function GenerationCard({
               </Badge>
             )}
             {shortModel && (
-              <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-background/60 backdrop-blur-sm border-border/40 text-muted-foreground font-normal">
+              <Badge variant="outline" className={`text-[8px] px-1 py-0 h-3.5 backdrop-blur-sm font-medium ${getModelBadgeClasses(shortModel)}`}>
                 {shortModel}
               </Badge>
             )}
