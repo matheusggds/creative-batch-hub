@@ -396,6 +396,7 @@ export default function AvatarDetails() {
                   key={`gen-${item.generation.id}`}
                   item={item}
                   onClick={() => handleCardClick(item)}
+                  onDelete={(target) => setDeleteImageTarget(target)}
                 />
               );
             })}
