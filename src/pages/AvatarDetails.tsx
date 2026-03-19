@@ -409,6 +409,9 @@ export default function AvatarDetails() {
           open={!!detailItem}
           onOpenChange={(v) => !v && setDetailItem(null)}
           item={detailItem}
+          navigableCount={navigableItems.length}
+          currentIndex={currentNavIndex}
+          onNavigate={handleNavigate}
         />
 
         {/* Unified New Generation Modal */}
