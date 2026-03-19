@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Check } from "lucide-react";
 
 export const SHOT_LIST = [
   { id: "TH1_FRONT_NEUTRAL", label: "Frontal Neutro", group: "Torso/Head" },
@@ -27,54 +28,76 @@ interface ShotPickerProps {
   onToggleShot: (shotId: string) => void;
   onToggleGroup: (group: string) => void;
   disabled?: boolean;
+  disabledShotIds?: Set<string>;
 }
 
-export function ShotPicker({ selectedShotIds, onToggleShot, onToggleGroup, disabled }: ShotPickerProps) {
+export function ShotPicker({ selectedShotIds, onToggleShot, onToggleGroup, disabled, disabledShotIds }: ShotPickerProps) {
+  const selectableCount = SHOT_LIST.filter((s) => !disabledShotIds?.has(s.id)).length;
+  const selectedCount = Array.from(selectedShotIds).filter((id) => !disabledShotIds?.has(id)).length;
+
   return (
     <div className="space-y-2 flex-1 min-h-0 flex flex-col">
       <Label>
         Ângulos / Shots{" "}
         <span className="text-muted-foreground font-normal">
-          ({selectedShotIds.size} selecionado{selectedShotIds.size !== 1 ? "s" : ""})
+          ({selectedCount} selecionado{selectedCount !== 1 ? "s" : ""}
+          {disabledShotIds && disabledShotIds.size > 0 && ` · ${disabledShotIds.size} já gerado${disabledShotIds.size !== 1 ? "s" : ""}`})
         </span>
       </Label>
       <ScrollArea className="flex-1 max-h-[220px] rounded-lg border border-border/50 p-2">
         <div className="space-y-3">
           {SHOT_GROUPS.map((group) => {
             const groupShots = SHOT_LIST.filter((s) => s.group === group);
-            const allSelected = groupShots.every((s) => selectedShotIds.has(s.id));
-            const someSelected = groupShots.some((s) => selectedShotIds.has(s.id));
+            const enabledGroupShots = groupShots.filter((s) => !disabledShotIds?.has(s.id));
+            const allGroupDisabled = enabledGroupShots.length === 0;
+            const allSelected = enabledGroupShots.length > 0 && enabledGroupShots.every((s) => selectedShotIds.has(s.id));
+            const someSelected = enabledGroupShots.some((s) => selectedShotIds.has(s.id));
+
             return (
               <div key={group} className="space-y-1">
                 <button
                   type="button"
                   className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                  onClick={() => onToggleGroup(group)}
-                  disabled={disabled}
+                  onClick={() => !allGroupDisabled && onToggleGroup(group)}
+                  disabled={disabled || allGroupDisabled}
                 >
                   <Checkbox
                     checked={allSelected}
                     className="h-3.5 w-3.5"
                     data-state={someSelected && !allSelected ? "indeterminate" : allSelected ? "checked" : "unchecked"}
                     onClick={(e) => e.stopPropagation()}
-                    onCheckedChange={() => onToggleGroup(group)}
-                    disabled={disabled}
+                    onCheckedChange={() => !allGroupDisabled && onToggleGroup(group)}
+                    disabled={disabled || allGroupDisabled}
                   />
                   {group}
                 </button>
+
+                {allGroupDisabled && (
+                  <p className="text-[10px] text-muted-foreground pl-5 italic">
+                    Todos os ângulos desta categoria já foram gerados
+                  </p>
+                )}
+
                 <div className="flex flex-wrap gap-1.5 pl-5">
                   {groupShots.map((shot) => {
+                    const isDisabled = disabledShotIds?.has(shot.id);
                     const isSelected = selectedShotIds.has(shot.id);
                     return (
                       <Badge
                         key={shot.id}
-                        variant={isSelected ? "default" : "outline"}
-                        className={`cursor-pointer text-xs transition-all ${
-                          isSelected ? "" : "hover:bg-accent hover:text-accent-foreground"
+                        variant={isDisabled ? "outline" : isSelected ? "default" : "outline"}
+                        className={`text-xs transition-all ${
+                          isDisabled
+                            ? "opacity-50 cursor-not-allowed"
+                            : isSelected
+                            ? "cursor-pointer"
+                            : "cursor-pointer hover:bg-accent hover:text-accent-foreground"
                         } ${disabled ? "pointer-events-none opacity-50" : ""}`}
-                        onClick={() => !disabled && onToggleShot(shot.id)}
+                        onClick={() => !disabled && !isDisabled && onToggleShot(shot.id)}
                       >
+                        {isDisabled && <Check className="h-3 w-3 mr-1 text-muted-foreground" />}
                         {shot.label}
+                        {isDisabled && <span className="ml-1 text-[9px] text-muted-foreground">Já gerado</span>}
                       </Badge>
                     );
                   })}
@@ -96,12 +119,13 @@ export function toggleShotInSet(prev: Set<string>, shotId: string): Set<string> 
   return next;
 }
 
-/** Helper: toggle all shots of a group (immutable) */
-export function toggleGroupInSet(prev: Set<string>, group: string): Set<string> {
+/** Helper: toggle all shots of a group (immutable), skipping disabled shots */
+export function toggleGroupInSet(prev: Set<string>, group: string, disabledShotIds?: Set<string>): Set<string> {
   const groupShots = SHOT_LIST.filter((s) => s.group === group).map((s) => s.id);
-  const allSelected = groupShots.every((id) => prev.has(id));
+  const enabledGroupShots = groupShots.filter((id) => !disabledShotIds?.has(id));
+  const allSelected = enabledGroupShots.every((id) => prev.has(id));
   const next = new Set(prev);
-  groupShots.forEach((id) => {
+  enabledGroupShots.forEach((id) => {
     if (allSelected) next.delete(id);
     else next.add(id);
   });

@@ -36,6 +36,7 @@ interface Props {
   references: AvatarReferenceAsset[];
   onGenerationCreated?: (generationId: string) => void;
   preselectedAssetIds?: string[];
+  completedShotIds?: Set<string>;
 }
 
 type Step = 1 | 2 | 3 | 4;
@@ -47,6 +48,7 @@ export function NewGenerationModal({
   references,
   onGenerationCreated,
   preselectedAssetIds,
+  completedShotIds,
 }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -247,8 +249,9 @@ export function NewGenerationModal({
                   <ShotPicker
                     selectedShotIds={selectedShotIds}
                     onToggleShot={(id) => setSelectedShotIds((p) => toggleShotInSet(p, id))}
-                    onToggleGroup={(g) => setSelectedShotIds((p) => toggleGroupInSet(p, g))}
+                    onToggleGroup={(g) => setSelectedShotIds((p) => toggleGroupInSet(p, g, completedShotIds))}
                     disabled={mutation.isPending}
+                    disabledShotIds={completedShotIds}
                   />
                   <div className="space-y-2">
                     <Label htmlFor="focus-piece">
