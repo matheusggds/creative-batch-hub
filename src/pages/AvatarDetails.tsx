@@ -4,6 +4,8 @@ import { ImageDetailModal, GridItem } from "@/components/avatar/ImageDetailModal
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvatarProfile } from "@/hooks/useAvatarProfile";
 import { useAvatarGenerations, AvatarGeneration } from "@/hooks/useAvatarGenerations";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -11,6 +13,16 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   ImageIcon,
   Images,
@@ -21,7 +33,9 @@ import {
   MousePointerClick,
   Loader2,
   Download,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
   draft: { label: "Rascunho", variant: "secondary" },
@@ -29,9 +43,20 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   archived: { label: "Arquivado", variant: "outline" },
 };
 
+const STEP_LABELS: Record<string, string> = {
+  generate_image: "Gerando imagem...",
+  extract_prompt: "Analisando imagem...",
+};
+
+function humanizeStep(step: string | null): string {
+  if (!step) return "Processando…";
+  return STEP_LABELS[step] ?? "Processando...";
+}
+
 export default function AvatarDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const qc = useQueryClient();
 
   const { data: avatar, isLoading, error } = useAvatarProfile(id);
   const { data: generations } = useAvatarGenerations(id);
@@ -40,6 +65,11 @@ export default function AvatarDetails() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [anglesOpen, setAnglesOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<GridItem | null>(null);
+
+  // Delete image state
+  const [deleteImageTarget, setDeleteImageTarget] = useState<{ refId: string; assetId: string } | null>(null);
+  // Delete avatar state
+  const [deleteAvatarOpen, setDeleteAvatarOpen] = useState(false);
 
   const openGenerateModal = () => setAnglesOpen(true);
 
@@ -68,6 +98,60 @@ export default function AvatarDetails() {
     }
   };
 
+  // Delete single image mutation
+  const deleteImageMutation = useMutation({
+    mutationFn: async ({ refId, assetId }: { refId: string; assetId: string }) => {
+      const { error: refErr } = await supabase
+        .from("avatar_reference_assets")
+        .delete()
+        .eq("id", refId);
+      if (refErr) throw refErr;
+
+      const { error: assetErr } = await supabase
+        .from("assets")
+        .delete()
+        .eq("id", assetId);
+      if (assetErr) throw assetErr;
+    },
+    onSuccess: () => {
+      toast.success("Imagem excluída.");
+      qc.invalidateQueries({ queryKey: ["avatar_profile", id] });
+      qc.invalidateQueries({ queryKey: ["avatar_generations", id] });
+    },
+    onError: () => toast.error("Erro ao excluir imagem."),
+  });
+
+  // Delete avatar mutation
+  const deleteAvatarMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("avatar_profiles")
+        .delete()
+        .eq("id", id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Avatar excluído.");
+      qc.invalidateQueries({ queryKey: ["avatar_profiles"] });
+      navigate("/avatars");
+    },
+    onError: () => toast.error("Erro ao excluir avatar."),
+  });
+
+  // Compute completed shot IDs
+  const completedShotIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!generations) return ids;
+    for (const gen of generations) {
+      if (gen.status !== "completed") continue;
+      const params = gen.ai_parameters as Record<string, unknown>;
+      const debug = params?._debug as Record<string, unknown> | null;
+      const shotId = params?.shotId ?? debug?.selectedShotId;
+      if (shotId && typeof shotId === "string") ids.add(shotId);
+    }
+    return ids;
+  }, [generations]);
+
   // Build unified grid items
   const gridItems: GridItem[] = useMemo(() => {
     if (!avatar) return [];
@@ -83,35 +167,29 @@ export default function AvatarDetails() {
       (g) => g.status === "completed"
     );
 
-    // Map result_asset_id → generation for completed gens
     const resultAssetToGen = new Map(
       completedGens
         .filter((g) => g.result_asset_id)
         .map((g) => [g.result_asset_id!, g])
     );
 
-    // Track which asset_ids are covered by references
     const refAssetIds = new Set(avatar.references.map((r) => r.asset_id));
 
-    // Active generations as placeholders (top of grid)
     const activeItems: GridItem[] = activeGens.map((g) => ({
       type: "generation" as const,
       generation: g,
     }));
 
-    // Reference assets with matched generation metadata
     const refItems: GridItem[] = avatar.references.map((ref) => ({
       type: "reference" as const,
       ref,
       generation: resultAssetToGen.get(ref.asset_id),
     }));
 
-    // Completed generations not matched to any reference (safety net)
     const unmatchedCompleted: GridItem[] = completedGens
       .filter((g) => g.result_asset_id && !refAssetIds.has(g.result_asset_id))
       .map((g) => ({ type: "generation" as const, generation: g }));
 
-    // Failed generations at end
     const failedItems: GridItem[] = failedGens.map((g) => ({
       type: "generation" as const,
       generation: g,
@@ -198,7 +276,7 @@ export default function AvatarDetails() {
               </div>
               <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
                 <Images className="h-4 w-4" />
-                <span>{refCount} imagem{refCount !== 1 ? "ens" : ""}</span>
+                <span>{refCount} imagem{refCount !== 1 ? "ns" : ""}</span>
               </div>
             </div>
 
@@ -206,6 +284,15 @@ export default function AvatarDetails() {
               <Button className="gap-2" onClick={openGenerateModal}>
                 <Wand2 className="h-4 w-4" />
                 Nova Geração
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                onClick={() => setDeleteAvatarOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Excluir avatar
               </Button>
             </div>
           </div>
@@ -283,10 +370,10 @@ export default function AvatarDetails() {
                     isSelected={selectedIds.has(item.ref.asset_id)}
                     onToggle={() => toggleSelect(item.ref.asset_id)}
                     onClick={() => handleCardClick(item)}
+                    onDelete={() => setDeleteImageTarget({ refId: item.ref.id, assetId: item.ref.asset_id })}
                   />
                 );
               }
-              // Generation placeholder (active/failed/unmatched completed)
               return (
                 <GenerationCard
                   key={`gen-${item.generation.id}`}
@@ -312,7 +399,53 @@ export default function AvatarDetails() {
           avatarProfileId={avatar.id}
           references={avatar.references}
           preselectedAssetIds={selectionMode && hasSelection ? Array.from(selectedIds) : undefined}
+          completedShotIds={completedShotIds}
         />
+
+        {/* Delete Image Confirmation */}
+        <AlertDialog open={!!deleteImageTarget} onOpenChange={(v) => !v && setDeleteImageTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir imagem</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir esta imagem? Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (deleteImageTarget) deleteImageMutation.mutate(deleteImageTarget);
+                  setDeleteImageTarget(null);
+                }}
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete Avatar Confirmation */}
+        <AlertDialog open={deleteAvatarOpen} onOpenChange={setDeleteAvatarOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir avatar</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir o avatar "{avatar.name}"? Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => deleteAvatarMutation.mutate()}
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );
@@ -352,9 +485,7 @@ function getShotLabel(gen?: AvatarGeneration): string | null {
   if (!gen?.ai_parameters || typeof gen.ai_parameters !== "object") return null;
   const params = gen.ai_parameters as Record<string, unknown>;
   const debug = params._debug as Record<string, unknown> | null;
-  // New pipeline: human-readable label already in _debug.shotLabel
   if (debug?.shotLabel && typeof debug.shotLabel === "string") return debug.shotLabel;
-  // Resolve from shotId or shot_label
   const rawId = params.shotId ?? debug?.selectedShotId ?? params.shot_label;
   if (rawId) {
     const raw = String(rawId);
@@ -370,12 +501,14 @@ function ReferenceCard({
   isSelected,
   onToggle,
   onClick,
+  onDelete,
 }: {
   item: GridItem & { type: "reference" };
   selectionMode: boolean;
   isSelected: boolean;
   onToggle: () => void;
   onClick: () => void;
+  onDelete: () => void;
 }) {
   const ref = item.ref;
   const isOriginal = !item.generation;
@@ -403,6 +536,17 @@ function ReferenceCard({
         <div className="flex h-full w-full items-center justify-center">
           <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
         </div>
+      )}
+
+      {/* Delete button (hover, top-left) */}
+      {!selectionMode && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 rounded-md bg-destructive/80 backdrop-blur-sm p-1 hover:bg-destructive text-destructive-foreground"
+          title="Excluir imagem"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
       )}
 
       {/* Download button */}
@@ -482,7 +626,7 @@ function GenerationCard({
         <div className="flex flex-col items-center justify-center h-full gap-2 p-3">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <span className="text-[10px] text-muted-foreground text-center leading-tight">
-            {gen.current_step ?? "Processando…"}
+            {humanizeStep(gen.current_step)}
           </span>
           {gen.progress_pct > 0 && (
             <Progress value={gen.progress_pct} className="w-3/4 h-1.5" />
