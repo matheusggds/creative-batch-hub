@@ -16,10 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Loader2,
-  AlertCircle,
+  ImageIcon,
   ImageIcon,
   CheckCircle2,
   ArrowLeft,
