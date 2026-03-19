@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { AvatarReferenceAsset } from "@/hooks/useAvatarProfile";
@@ -16,10 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Loader2,
-  AlertCircle,
   ImageIcon,
   CheckCircle2,
   ArrowLeft,
@@ -141,59 +138,61 @@ export function NewGenerationModal({
   const selectedModel = IMAGE_MODELS.find((m) => m.id === selectedModelId)!;
 
   // --- Mutation ---
-  const mutation = useMutation({
-    mutationFn: async () => {
-      if (!user) throw new Error("Not authenticated");
-      const referenceAssetIds = Array.from(selectedRefIds).filter((id) => availableReferenceIds.has(id));
-      const shotIds = Array.from(selectedShotIds);
+  const handleGenerate = () => {
+    if (!user) return;
+    const referenceAssetIds = Array.from(selectedRefIds).filter((id) => availableReferenceIds.has(id));
+    const shotIds = Array.from(selectedShotIds);
+    const model = { ...selectedModel };
+    const focus = focusPiece.trim() || undefined;
+    const shotCount = shotIds.length;
 
-      if (referenceAssetIds.length < 1) throw new Error("Selecione ao menos 1 imagem de referência.");
-      if (shotIds.length < 1) throw new Error("Selecione ao menos 1 ângulo.");
+    if (referenceAssetIds.length < 1 || shotIds.length < 1) return;
 
-      const results = await Promise.all(
-        shotIds.map(async (shotId) => {
-          const input: Record<string, unknown> = {
-            shotId,
-            focusPiece: focusPiece.trim() || undefined,
-            image_model: selectedModel.image_model,
-            promptPackId: "ugc-avatar-reference-pack-v1",
-          };
-          if (selectedModel.thinking_level) {
-            input.thinking_level = selectedModel.thinking_level;
-          }
+    // Close modal immediately
+    reset();
+    onOpenChange(false);
+    toast.info(`Criando ${shotCount} ${shotCount === 1 ? "geração" : "gerações"}…`);
 
-          const { data, error } = await supabase.functions.invoke("create-generation", {
-            body: {
-              toolType: "avatar_base_pack_generation",
-              pipelineType: "multimodal_image_generation",
-              sourceMode: "avatar_workspace",
-              avatarProfileId,
-              referenceAssetIds,
-              input,
-            },
-          });
-          if (error) {
-            console.error(`create-generation error for shot ${shotId}:`, error);
-            throw new Error(`Falha ao criar geração para ${SHOT_LIST.find((s) => s.id === shotId)?.label ?? shotId}`);
-          }
-          return data as { generationId: string };
-        })
-      );
-      return results;
-    },
-    onSuccess: (data) => {
-      setCreatedCount(data.length);
-      toast.success(`${data.length} ${data.length === 1 ? "geração criada com sucesso" : "gerações criadas com sucesso"}!`);
-      qc.invalidateQueries({ queryKey: ["avatar_generations", avatarProfileId] });
-      if (data[0]?.generationId) onGenerationCreated?.(data[0].generationId);
-      reset();
-      onOpenChange(false);
-    },
-    onError: (err: Error) => {
-      toast.error("Erro ao criar gerações.");
-      console.error("NewGenerationModal error:", err);
-    },
-  });
+    // Fire requests in background
+    Promise.all(
+      shotIds.map(async (shotId) => {
+        const input: Record<string, unknown> = {
+          shotId,
+          focusPiece: focus,
+          image_model: model.image_model,
+          promptPackId: "ugc-avatar-reference-pack-v1",
+        };
+        if (model.thinking_level) {
+          input.thinking_level = model.thinking_level;
+        }
+
+        const { data, error } = await supabase.functions.invoke("create-generation", {
+          body: {
+            toolType: "avatar_base_pack_generation",
+            pipelineType: "multimodal_image_generation",
+            sourceMode: "avatar_workspace",
+            avatarProfileId,
+            referenceAssetIds,
+            input,
+          },
+        });
+        if (error) {
+          console.error(`create-generation error for shot ${shotId}:`, error);
+          throw error;
+        }
+        return data as { generationId: string };
+      })
+    )
+      .then((results) => {
+        toast.success(`${results.length} ${results.length === 1 ? "geração criada com sucesso" : "gerações criadas com sucesso"}!`);
+        qc.invalidateQueries({ queryKey: ["avatar_generations", avatarProfileId] });
+        if (results[0]?.generationId) onGenerationCreated?.(results[0].generationId);
+      })
+      .catch((err) => {
+        toast.error("Erro ao criar gerações.");
+        console.error("NewGenerationModal error:", err);
+      });
+  };
 
   // --- Step navigation helpers ---
   const canAdvance = (): boolean => {
@@ -224,7 +223,6 @@ export function NewGenerationModal({
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (mutation.isPending) return;
         if (!v) reset();
         onOpenChange(v);
       }}
@@ -285,7 +283,7 @@ export function NewGenerationModal({
                   toggleRef={toggleRef}
                   validReferenceCount={validReferenceCount}
                   hasPreselection={!!preselectedKey && validReferenceCount > 0}
-                  disabled={mutation.isPending}
+                  disabled={false}
                 />
               )}
 
@@ -302,12 +300,11 @@ export function NewGenerationModal({
                             key={model.id}
                             type="button"
                             onClick={() => setSelectedModelId(model.id)}
-                            disabled={mutation.isPending}
                             className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-left transition-all ${
                               isSelected
                                 ? "border-primary bg-primary/10 ring-1 ring-primary/30"
                                 : "border-border/50 bg-card hover:border-primary/40"
-                            } disabled:pointer-events-none disabled:opacity-50`}
+                            }`}
                           >
                             <span className="text-xs font-medium leading-tight">{model.label}</span>
                             <span className="text-[10px] leading-tight text-muted-foreground">{model.subtitle}</span>
@@ -321,7 +318,7 @@ export function NewGenerationModal({
                     selectedShotIds={selectedShotIds}
                     onToggleShot={(id) => setSelectedShotIds((p) => toggleShotInSet(p, id))}
                     onToggleGroup={(g) => setSelectedShotIds((p) => toggleGroupInSet(p, g, completedShotIds))}
-                    disabled={mutation.isPending}
+                    disabled={false}
                     disabledShotIds={completedShotIds}
                   />
                   <div className="space-y-2">
@@ -333,7 +330,6 @@ export function NewGenerationModal({
                       placeholder="Ex: jaqueta jeans, vestido floral…"
                       value={focusPiece}
                       onChange={(e) => setFocusPiece(e.target.value)}
-                      disabled={mutation.isPending}
                       maxLength={200}
                     />
                   </div>
@@ -349,22 +345,15 @@ export function NewGenerationModal({
                   modelLabel={selectedModel.label}
                 />
               )}
-
-              {mutation.isError && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{(mutation.error as Error).message}</AlertDescription>
-                </Alert>
-              )}
             </div>
 
             <DialogFooter className="flex-row justify-between gap-2 sm:justify-between">
               {step > 1 ? (
-                <Button variant="outline" onClick={handleBack} disabled={mutation.isPending} className="gap-1.5">
+                <Button variant="outline" onClick={handleBack} className="gap-1.5">
                   <ArrowLeft className="h-3.5 w-3.5" /> Voltar
                 </Button>
               ) : (
-                <Button variant="outline" onClick={() => { reset(); onOpenChange(false); }} disabled={mutation.isPending}>
+                <Button variant="outline" onClick={() => { reset(); onOpenChange(false); }}>
                   Cancelar
                 </Button>
               )}
@@ -374,11 +363,12 @@ export function NewGenerationModal({
                   Avançar <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
               ) : (
-                <Button onClick={() => mutation.mutate()} disabled={!canAdvance() || mutation.isPending} className="gap-2">
-                  {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {mutation.isPending
-                    ? "Gerando…"
-                    : `Gerar ${selectedShotIds.size} Ângulo${selectedShotIds.size !== 1 ? "s" : ""}`}
+                <Button
+                  onClick={handleGenerate}
+                  disabled={!canAdvance()}
+                  className="gap-2"
+                >
+                  {`Gerar ${selectedShotIds.size} Ângulo${selectedShotIds.size !== 1 ? "s" : ""}`}
                 </Button>
               )}
             </DialogFooter>
