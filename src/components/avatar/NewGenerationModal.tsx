@@ -18,7 +18,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ImageIcon,
-  ImageIcon,
   CheckCircle2,
   ArrowLeft,
   ArrowRight,
