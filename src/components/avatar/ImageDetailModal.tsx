@@ -335,6 +335,33 @@ export function ImageDetailModal({ open, onOpenChange, item, navigableCount = 0,
             ) : (
               <ImageIcon className="h-10 w-10 text-muted-foreground/30" />
             )}
+
+            {/* Navigation arrows */}
+            {onNavigate && navigableCount > 1 && (
+              <>
+                <button
+                  onClick={goPrev}
+                  disabled={!canGoPrev}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-10 rounded-full bg-background/70 backdrop-blur-sm p-1.5 border border-border/50 hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed transition-opacity text-foreground"
+                  aria-label="Imagem anterior"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={goNext}
+                  disabled={!canGoNext}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 rounded-full bg-background/70 backdrop-blur-sm p-1.5 border border-border/50 hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed transition-opacity text-foreground"
+                  aria-label="Próxima imagem"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 rounded-full bg-background/70 backdrop-blur-sm px-2.5 py-0.5 border border-border/50">
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    {currentIndex + 1} de {navigableCount}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Right: Info panel */}
