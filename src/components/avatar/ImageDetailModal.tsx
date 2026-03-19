@@ -376,7 +376,7 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
 
                   {models.image_model && (
                     <MetaRow icon={Cpu} label="Modelo de imagem">
-                      <span className="font-mono text-[11px]">{models.image_model}</span>
+                      <span className="text-[11px]">{getFriendlyModelName(models.image_model, models.thinking_level)}</span>
                     </MetaRow>
                   )}
 
