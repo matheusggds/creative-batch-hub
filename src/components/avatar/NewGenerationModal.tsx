@@ -36,6 +36,7 @@ interface Props {
   references: AvatarReferenceAsset[];
   onGenerationCreated?: (generationId: string) => void;
   preselectedAssetIds?: string[];
+  completedShotIds?: Set<string>;
 }
 
 type Step = 1 | 2 | 3 | 4;
