@@ -271,7 +271,7 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
     if (refCount && refCount > 0) {
       summaryParts.push(`${refCount} referência${refCount > 1 ? "s" : ""} usada${refCount > 1 ? "s" : ""}`);
     }
-    if (models.image_model) summaryParts.push(`Modelo: ${models.image_model}`);
+    if (models.image_model) summaryParts.push(`Modelo: ${getFriendlyModelName(models.image_model, models.thinking_level)}`);
   }
 
   return (
