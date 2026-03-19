@@ -648,6 +648,9 @@ function GenerationCard({
   const isFailed = gen.status === "failed";
   const isCompleted = gen.status === "completed";
   const shotLabel = getShotLabel(gen);
+  const { imageModel, thinkingLevel } = extractModelInfo(gen.ai_parameters);
+  const shortModel = getShortModelName(imageModel, thinkingLevel);
+  const timeLabel = relativeTime(gen.created_at);
 
   return (
     <div
@@ -693,11 +696,25 @@ function GenerationCard({
             className="h-full w-full object-cover"
             loading="lazy"
           />
-          {shotLabel && (
-            <div className="absolute top-1.5 right-1.5">
+          {/* Badges: top-right stack */}
+          <div className="absolute top-1.5 right-1.5 flex flex-col items-end gap-0.5">
+            {shotLabel && (
               <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-background/80 backdrop-blur-sm border-border/50 text-foreground">
                 {shotLabel}
               </Badge>
+            )}
+            {shortModel && (
+              <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-background/60 backdrop-blur-sm border-border/40 text-muted-foreground font-normal">
+                {shortModel}
+              </Badge>
+            )}
+          </div>
+          {/* Timestamp: bottom-left */}
+          {timeLabel && (
+            <div className="absolute bottom-1.5 left-1.5 pointer-events-none">
+              <span className="text-[10px] leading-none text-white/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                {timeLabel}
+              </span>
             </div>
           )}
           <DownloadButton url={gen.result_url} name={shotLabel ?? "gerada"} />
