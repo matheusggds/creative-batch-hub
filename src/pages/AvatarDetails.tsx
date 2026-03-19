@@ -535,6 +535,11 @@ function ReferenceCard({
   const ref = item.ref;
   const isOriginal = !item.generation;
   const shotLabel = getShotLabel(item.generation);
+  const { imageModel, thinkingLevel } = extractModelInfo(item.generation?.ai_parameters);
+  const shortModel = getShortModelName(imageModel, thinkingLevel);
+  const timeLabel = item.generation
+    ? relativeTime(item.generation.created_at)
+    : relativeTime(ref.created_at);
 
   return (
     <div
@@ -576,30 +581,41 @@ function ReferenceCard({
         <DownloadButton url={ref.file_url} name={shotLabel ?? ref.asset_name ?? "referencia"} />
       )}
 
-      {/* Bottom label overlay */}
+      {/* Badges: top-right stack */}
+      {!selectionMode && (
+        <div className="absolute top-1.5 right-1.5 flex flex-col items-end gap-0.5">
+          {shotLabel ? (
+            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-background/80 backdrop-blur-sm border-border/50 text-foreground">
+              {shotLabel}
+            </Badge>
+          ) : isOriginal ? (
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-background/80 backdrop-blur-sm border-border/50 text-muted-foreground">
+              Original
+            </Badge>
+          ) : null}
+          {shortModel && !isOriginal && (
+            <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 bg-background/60 backdrop-blur-sm border-border/40 text-muted-foreground font-normal">
+              {shortModel}
+            </Badge>
+          )}
+        </div>
+      )}
+
+      {/* Timestamp: bottom-left */}
+      {timeLabel && !selectionMode && (
+        <div className="absolute bottom-1.5 left-1.5 pointer-events-none">
+          <span className="text-[10px] leading-none text-white/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+            {timeLabel}
+          </span>
+        </div>
+      )}
+
+      {/* Bottom label overlay (hover) */}
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-2 pb-1.5 pt-6 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
         <span className="text-[10px] font-medium text-white leading-tight line-clamp-1">
           {shotLabel ?? (isOriginal ? "Referência Original" : "Imagem Gerada")}
         </span>
       </div>
-
-      {/* Always-visible shot badge for generated images */}
-      {shotLabel && !selectionMode && (
-        <div className="absolute top-1.5 right-1.5">
-          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-background/80 backdrop-blur-sm border-border/50 text-foreground">
-            {shotLabel}
-          </Badge>
-        </div>
-      )}
-
-      {/* Original indicator */}
-      {isOriginal && !selectionMode && (
-        <div className="absolute top-1.5 right-1.5">
-          <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-background/80 backdrop-blur-sm border-border/50 text-muted-foreground">
-            Original
-          </Badge>
-        </div>
-      )}
 
       {selectionMode && (
         <div className={`absolute top-2 left-2 transition-opacity ${isSelected ? "opacity-100" : "opacity-60 group-hover:opacity-100"}`}>
