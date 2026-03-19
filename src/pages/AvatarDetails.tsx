@@ -193,6 +193,30 @@ export default function AvatarDetails() {
     return [...activeItems, ...refItems, ...unmatchedCompleted, ...failedItems];
   }, [avatar, generations]);
 
+  // Navigable items for the inspector (only items with a visible image)
+  const navigableItems = useMemo(() => {
+    return gridItems.filter((item) => {
+      if (item.type === "reference") return !!item.ref.file_url;
+      return item.generation.status === "completed" && !!item.generation.result_url;
+    });
+  }, [gridItems]);
+
+  const currentNavIndex = useMemo(() => {
+    if (!detailItem) return -1;
+    return navigableItems.findIndex((ni) => {
+      if (detailItem.type === "reference" && ni.type === "reference") return ni.ref.id === detailItem.ref.id;
+      if (detailItem.type === "generation" && ni.type === "generation") return ni.generation.id === detailItem.generation.id;
+      if (detailItem.type === "reference" && ni.type === "reference") return ni.ref.asset_id === detailItem.ref.asset_id;
+      return false;
+    });
+  }, [detailItem, navigableItems]);
+
+  const handleNavigate = useCallback((index: number) => {
+    if (index >= 0 && index < navigableItems.length) {
+      setDetailItem(navigableItems[index]);
+    }
+  }, [navigableItems]);
+
   const handleCardClick = (item: GridItem) => {
     if (selectionMode && item.type === "reference") {
       toggleSelect(item.ref.asset_id);
