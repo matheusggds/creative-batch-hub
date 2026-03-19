@@ -249,8 +249,9 @@ export function NewGenerationModal({
                   <ShotPicker
                     selectedShotIds={selectedShotIds}
                     onToggleShot={(id) => setSelectedShotIds((p) => toggleShotInSet(p, id))}
-                    onToggleGroup={(g) => setSelectedShotIds((p) => toggleGroupInSet(p, g))}
+                    onToggleGroup={(g) => setSelectedShotIds((p) => toggleGroupInSet(p, g, completedShotIds))}
                     disabled={mutation.isPending}
+                    disabledShotIds={completedShotIds}
                   />
                   <div className="space-y-2">
                     <Label htmlFor="focus-piece">
