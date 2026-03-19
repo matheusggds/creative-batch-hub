@@ -226,7 +226,6 @@ export function NewGenerationModal({
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (mutation.isPending) return;
         if (!v) reset();
         onOpenChange(v);
       }}
@@ -287,7 +286,7 @@ export function NewGenerationModal({
                   toggleRef={toggleRef}
                   validReferenceCount={validReferenceCount}
                   hasPreselection={!!preselectedKey && validReferenceCount > 0}
-                  disabled={mutation.isPending}
+                  disabled={false}
                 />
               )}
 
@@ -304,12 +303,11 @@ export function NewGenerationModal({
                             key={model.id}
                             type="button"
                             onClick={() => setSelectedModelId(model.id)}
-                            disabled={mutation.isPending}
                             className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-left transition-all ${
                               isSelected
                                 ? "border-primary bg-primary/10 ring-1 ring-primary/30"
                                 : "border-border/50 bg-card hover:border-primary/40"
-                            } disabled:pointer-events-none disabled:opacity-50`}
+                            }`}
                           >
                             <span className="text-xs font-medium leading-tight">{model.label}</span>
                             <span className="text-[10px] leading-tight text-muted-foreground">{model.subtitle}</span>
@@ -323,7 +321,7 @@ export function NewGenerationModal({
                     selectedShotIds={selectedShotIds}
                     onToggleShot={(id) => setSelectedShotIds((p) => toggleShotInSet(p, id))}
                     onToggleGroup={(g) => setSelectedShotIds((p) => toggleGroupInSet(p, g, completedShotIds))}
-                    disabled={mutation.isPending}
+                    disabled={false}
                     disabledShotIds={completedShotIds}
                   />
                   <div className="space-y-2">
@@ -335,7 +333,6 @@ export function NewGenerationModal({
                       placeholder="Ex: jaqueta jeans, vestido floral…"
                       value={focusPiece}
                       onChange={(e) => setFocusPiece(e.target.value)}
-                      disabled={mutation.isPending}
                       maxLength={200}
                     />
                   </div>
@@ -351,22 +348,15 @@ export function NewGenerationModal({
                   modelLabel={selectedModel.label}
                 />
               )}
-
-              {mutation.isError && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{(mutation.error as Error).message}</AlertDescription>
-                </Alert>
-              )}
             </div>
 
             <DialogFooter className="flex-row justify-between gap-2 sm:justify-between">
               {step > 1 ? (
-                <Button variant="outline" onClick={handleBack} disabled={mutation.isPending} className="gap-1.5">
+                <Button variant="outline" onClick={handleBack} className="gap-1.5">
                   <ArrowLeft className="h-3.5 w-3.5" /> Voltar
                 </Button>
               ) : (
-                <Button variant="outline" onClick={() => { reset(); onOpenChange(false); }} disabled={mutation.isPending}>
+                <Button variant="outline" onClick={() => { reset(); onOpenChange(false); }}>
                   Cancelar
                 </Button>
               )}
@@ -377,13 +367,8 @@ export function NewGenerationModal({
                 </Button>
               ) : (
                 <Button
-                  onClick={() => {
-                    // Close modal immediately, fire generation in background
-                    reset();
-                    onOpenChange(false);
-                    mutation.mutate();
-                  }}
-                  disabled={!canAdvance() || mutation.isPending}
+                  onClick={handleGenerate}
+                  disabled={!canAdvance()}
                   className="gap-2"
                 >
                   {`Gerar ${selectedShotIds.size} Ângulo${selectedShotIds.size !== 1 ? "s" : ""}`}
