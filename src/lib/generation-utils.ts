@@ -1,5 +1,4 @@
-import { formatDistanceToNowStrict, differenceInMinutes, differenceInHours, differenceInDays, format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { differenceInMinutes, differenceInHours, differenceInDays, format } from "date-fns";
 
 /**
  * Short friendly model name for badges on cards.
@@ -34,6 +33,7 @@ export function getModelBadgeClasses(shortName: string | null): string {
   }
 }
 
+/**
  * Extract image_model and thinking_level from a generation's ai_parameters.
  */
 export function extractModelInfo(aiParameters: unknown): {
