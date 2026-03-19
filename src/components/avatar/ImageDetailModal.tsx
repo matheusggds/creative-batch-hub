@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { humanizeStep, friendlyErrorCode } from "@/lib/generation-utils";
 import {
   ImageIcon,
   Loader2,

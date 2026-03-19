@@ -256,7 +256,7 @@ export default function AvatarDetails() {
     );
   }
 
-  const status = statusConfig[avatar.status] ?? { label: avatar.status, variant: "outline" as const };
+  const status = avatar ? (statusConfig[avatar.status] ?? { label: avatar.status, variant: "outline" as const }) : { label: "", variant: "outline" as const };
   const hasSelection = selectedIds.size > 0;
   // Count only visible images: references with file_url + completed generations with result_url (not matched to a ref)
   const completedImageCount = useMemo(() => {
