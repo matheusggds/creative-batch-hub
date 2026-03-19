@@ -318,7 +318,7 @@ export default function AvatarDetails() {
         {/* Gallery Header */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-lg font-semibold">Biblioteca do Avatar</h2>
-          {refCount > 0 && (
+          {completedImageCount > 0 && (
             <Button
               variant={selectionMode ? "secondary" : "outline"}
               size="sm"
