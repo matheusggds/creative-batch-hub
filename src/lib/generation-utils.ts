@@ -32,8 +32,8 @@ export function getModelBadgeClasses(shortName: string | null): string {
     default:
       return "bg-zinc-700/80 border-zinc-500/50 text-white";
   }
+}
 
-/**
  * Extract image_model and thinking_level from a generation's ai_parameters.
  */
 export function extractModelInfo(aiParameters: unknown): {
