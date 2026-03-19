@@ -35,14 +35,17 @@ export function AvatarProfileCard({ avatar, onClick }: Props) {
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("avatar_profiles").delete().eq("id", avatar.id);
+      const { data, error } = await supabase.functions.invoke("delete-asset", {
+        body: { avatarProfileId: avatar.id, deleteMode: "avatar" },
+      });
       if (error) throw error;
+      if (!data?.success) throw new Error("Delete failed");
     },
     onSuccess: () => {
       toast.success("Avatar excluído.");
       qc.invalidateQueries({ queryKey: ["avatar_profiles"] });
     },
-    onError: () => toast.error("Erro ao excluir avatar."),
+    onError: () => toast.error("Não foi possível excluir o avatar. Tente novamente."),
   });
 
   return (

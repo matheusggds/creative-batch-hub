@@ -115,21 +115,21 @@ export default function AvatarDetails() {
     onError: () => toast.error("Não foi possível excluir a imagem. Tente novamente."),
   });
 
-  // Delete avatar mutation
+  // Delete avatar mutation (via Edge Function)
   const deleteAvatarMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from("avatar_profiles")
-        .delete()
-        .eq("id", id!);
+      const { data, error } = await supabase.functions.invoke("delete-asset", {
+        body: { avatarProfileId: id, deleteMode: "avatar" },
+      });
       if (error) throw error;
+      if (!data?.success) throw new Error("Delete failed");
     },
     onSuccess: () => {
       toast.success("Avatar excluído.");
       qc.invalidateQueries({ queryKey: ["avatar_profiles"] });
       navigate("/avatars");
     },
-    onError: () => toast.error("Erro ao excluir avatar."),
+    onError: () => toast.error("Não foi possível excluir o avatar. Tente novamente."),
   });
 
   // Compute completed shot IDs
