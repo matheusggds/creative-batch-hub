@@ -293,7 +293,7 @@ export default function AvatarDetails() {
               </div>
               <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
                 <Images className="h-4 w-4" />
-                <span>{refCount} imagem{refCount !== 1 ? "ns" : ""}</span>
+                <span>{completedImageCount} {completedImageCount === 1 ? "imagem" : "imagens"}</span>
               </div>
             </div>
 
