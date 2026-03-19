@@ -29,6 +29,40 @@ import { toast } from "sonner";
 import { GenerationTypeSelector, type GenerationType } from "./GenerationTypeSelector";
 import { ShotPicker, SHOT_LIST, toggleShotInSet, toggleGroupInSet } from "./ShotPicker";
 
+/* ── Image Model definitions ── */
+interface ImageModelOption {
+  id: string;
+  label: string;
+  subtitle: string;
+  image_model: string;
+  thinking_level?: string;
+}
+
+const IMAGE_MODELS: ImageModelOption[] = [
+  {
+    id: "nano-banana-pro",
+    label: "Nano Banana Pro",
+    subtitle: "Máxima qualidade · Mais lento",
+    image_model: "gemini-3-pro-image-preview",
+  },
+  {
+    id: "nano-banana-2-high",
+    label: "Nano Banana 2 High",
+    subtitle: "Alta qualidade · Moderado",
+    image_model: "gemini-3.1-flash-image-preview",
+    thinking_level: "high",
+  },
+  {
+    id: "nano-banana-2-fast",
+    label: "Nano Banana 2 Fast",
+    subtitle: "Rápido · Boa qualidade",
+    image_model: "gemini-3.1-flash-image-preview",
+    thinking_level: "minimal",
+  },
+];
+
+const DEFAULT_MODEL_ID = "nano-banana-2-fast";
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -58,6 +92,7 @@ export function NewGenerationModal({
   const [selectedRefIds, setSelectedRefIds] = useState<Set<string>>(new Set());
   const [selectedShotIds, setSelectedShotIds] = useState<Set<string>>(new Set());
   const [focusPiece, setFocusPiece] = useState("");
+  const [selectedModelId, setSelectedModelId] = useState(DEFAULT_MODEL_ID);
   const [createdCount, setCreatedCount] = useState<number | null>(null);
 
   const availableReferenceIds = new Set(references.map((ref) => ref.asset_id));
@@ -81,6 +116,7 @@ export function NewGenerationModal({
     setSelectedRefIds(new Set());
     setSelectedShotIds(new Set());
     setFocusPiece("");
+    setSelectedModelId(DEFAULT_MODEL_ID);
     setCreatedCount(null);
   };
 
@@ -102,7 +138,9 @@ export function NewGenerationModal({
 
   const validReferenceCount = Array.from(selectedRefIds).filter((id) => availableReferenceIds.has(id)).length;
 
-  // --- Mutation (same as before, only base_angles for now) ---
+  const selectedModel = IMAGE_MODELS.find((m) => m.id === selectedModelId)!;
+
+  // --- Mutation ---
   const mutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
@@ -114,6 +152,16 @@ export function NewGenerationModal({
 
       const results = await Promise.all(
         shotIds.map(async (shotId) => {
+          const input: Record<string, unknown> = {
+            shotId,
+            focusPiece: focusPiece.trim() || undefined,
+            image_model: selectedModel.image_model,
+            promptPackId: "ugc-avatar-reference-pack-v1",
+          };
+          if (selectedModel.thinking_level) {
+            input.thinking_level = selectedModel.thinking_level;
+          }
+
           const { data, error } = await supabase.functions.invoke("create-generation", {
             body: {
               toolType: "avatar_base_pack_generation",
@@ -121,12 +169,7 @@ export function NewGenerationModal({
               sourceMode: "avatar_workspace",
               avatarProfileId,
               referenceAssetIds,
-              input: {
-                shotId,
-                focusPiece: focusPiece.trim() || undefined,
-                geminiPreferredModel: "gemini-3-pro-image-preview",
-                promptPackId: "ugc-avatar-reference-pack-v1",
-              },
+              input,
             },
           });
           if (error) {
@@ -155,7 +198,7 @@ export function NewGenerationModal({
     switch (step) {
       case 1: return generationType !== null;
       case 2: return validReferenceCount >= 1;
-      case 3: return selectedShotIds.size > 0; // type-specific validation
+      case 3: return selectedShotIds.size > 0;
       case 4: return true;
       default: return false;
     }
@@ -246,6 +289,32 @@ export function NewGenerationModal({
 
               {step === 3 && generationType === "base_angles" && (
                 <div className="space-y-4">
+                  {/* Model Selector */}
+                  <div className="space-y-2">
+                    <Label>Modelo de imagem</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {IMAGE_MODELS.map((model) => {
+                        const isSelected = selectedModelId === model.id;
+                        return (
+                          <button
+                            key={model.id}
+                            type="button"
+                            onClick={() => setSelectedModelId(model.id)}
+                            disabled={mutation.isPending}
+                            className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-left transition-all ${
+                              isSelected
+                                ? "border-primary bg-primary/10 ring-1 ring-primary/30"
+                                : "border-border/50 bg-card hover:border-primary/40"
+                            } disabled:pointer-events-none disabled:opacity-50`}
+                          >
+                            <span className="text-xs font-medium leading-tight">{model.label}</span>
+                            <span className="text-[10px] leading-tight text-muted-foreground">{model.subtitle}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <ShotPicker
                     selectedShotIds={selectedShotIds}
                     onToggleShot={(id) => setSelectedShotIds((p) => toggleShotInSet(p, id))}
@@ -275,6 +344,7 @@ export function NewGenerationModal({
                   referenceCount={validReferenceCount}
                   shotCount={selectedShotIds.size}
                   focusPiece={focusPiece}
+                  modelLabel={selectedModel.label}
                 />
               )}
 
@@ -399,11 +469,13 @@ function ReviewStep({
   referenceCount,
   shotCount,
   focusPiece,
+  modelLabel,
 }: {
   generationType: GenerationType | null;
   referenceCount: number;
   shotCount: number;
   focusPiece: string;
+  modelLabel: string;
 }) {
   return (
     <div className="rounded-lg border border-border/50 p-4 space-y-3">
@@ -412,6 +484,10 @@ function ReviewStep({
         <div className="flex justify-between">
           <span className="text-muted-foreground">Tipo</span>
           <span className="font-medium">{generationType ? TYPE_LABELS[generationType] : "—"}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Modelo</span>
+          <span className="font-medium">{modelLabel}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Referências</span>
