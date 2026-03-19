@@ -539,7 +539,7 @@ function ReferenceCard({
   const shortModel = getShortModelName(imageModel, thinkingLevel);
   const timeLabel = item.generation
     ? relativeTime(item.generation.created_at)
-    : relativeTime(ref.created_at);
+    : null;
 
   return (
     <div

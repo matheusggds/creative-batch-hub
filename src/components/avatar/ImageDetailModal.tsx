@@ -34,7 +34,7 @@ import {
 import { AvatarGeneration } from "@/hooks/useAvatarGenerations";
 import { AvatarReferenceAsset } from "@/hooks/useAvatarProfile";
 import { useGenerationReferenceAssets } from "@/hooks/useGenerationReferenceAssets";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 
 export type GridItem =
