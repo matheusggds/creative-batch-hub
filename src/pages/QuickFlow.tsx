@@ -785,7 +785,7 @@ export default function QuickFlow() {
                     <Button
                       size="sm"
                       className="flex-1 gap-1.5 h-7 text-xs"
-                      disabled={pendingCount > 0 || generateMutation.isPending || !activeVar}
+                      disabled={hasGenerationInProgress || !activeVar}
                       onClick={handleGenerateVariations}
                     >
                       {pendingCount > 0 ? (

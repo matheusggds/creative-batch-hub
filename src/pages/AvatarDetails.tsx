@@ -632,9 +632,11 @@ function ReferenceCard({
 function GenerationCard({
   item,
   onClick,
+  onDelete,
 }: {
   item: GridItem & { type: "generation" };
   onClick: () => void;
+  onDelete: (target: { refId: string; assetId: string }) => void;
 }) {
   const gen = item.generation;
   const isActive = ["pending", "queued", "processing"].includes(gen.status);
@@ -645,18 +647,61 @@ function GenerationCard({
   const shortModel = getShortModelName(imageModel, thinkingLevel);
   const timeLabel = relativeTime(gen.created_at);
 
+  // Stall detection: if active for >90s, show stalled state
+  const [isStalled, setIsStalled] = useState(false);
+  useEffect(() => {
+    if (!isActive) { setIsStalled(false); return; }
+    const createdMs = new Date(gen.created_at).getTime();
+    const elapsedMs = Date.now() - createdMs;
+    const remainingMs = Math.max(0, 90_000 - elapsedMs);
+    if (elapsedMs >= 90_000) { setIsStalled(true); return; }
+    const timer = setTimeout(() => setIsStalled(true), remainingMs);
+    return () => clearTimeout(timer);
+  }, [isActive, gen.created_at]);
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete({
+      refId: gen.id,
+      assetId: gen.result_asset_id ?? gen.id,
+    });
+  };
+
   return (
     <div
       className={`group relative aspect-square rounded-lg border overflow-hidden cursor-pointer transition-all ${
-        isActive
+        isActive && !isStalled
           ? "border-primary/40 bg-primary/5"
-          : isFailed
+          : isFailed || isStalled
           ? "border-destructive/40 bg-destructive/5"
           : "border-border/50 bg-muted hover:border-border"
       }`}
       onClick={onClick}
     >
-      {isActive ? (
+      {/* Delete button — always available on hover */}
+      <button
+        onClick={handleDelete}
+        className="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 rounded-md bg-destructive/80 backdrop-blur-sm p-1 hover:bg-destructive text-destructive-foreground"
+        title="Excluir"
+      >
+        <Trash2 className="h-3 w-3" />
+      </button>
+
+      {isStalled ? (
+        <div className="flex flex-col items-center justify-center h-full gap-2 p-3">
+          <AlertTriangle className="h-6 w-6 text-destructive" />
+          <span className="text-[10px] text-destructive text-center leading-tight">A geração parece travada</span>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-6 text-[10px] px-2"
+            onClick={handleDelete}
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Excluir
+          </Button>
+        </div>
+      ) : isActive ? (
         <div className="flex flex-col items-center justify-center h-full gap-2 p-3">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <span className="text-[10px] text-muted-foreground text-center leading-tight">
@@ -674,7 +719,9 @@ function GenerationCard({
       ) : isFailed ? (
         <div className="flex flex-col items-center justify-center h-full gap-2 p-3">
           <AlertTriangle className="h-6 w-6 text-destructive" />
-          <span className="text-[10px] text-destructive text-center leading-tight">Falhou</span>
+          <span className="text-[10px] text-destructive text-center leading-tight">
+            {friendlyErrorCode(gen.error_code)}
+          </span>
           {shotLabel && (
             <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
               {shotLabel}
