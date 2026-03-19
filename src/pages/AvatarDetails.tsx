@@ -209,6 +209,14 @@ export default function AvatarDetails() {
     }
   }, [navigableItems]);
 
+  // Count only visible images: references with file_url + completed generations with result_url
+  const completedImageCount = useMemo(() => {
+    return gridItems.filter((item) => {
+      if (item.type === "reference") return !!item.ref.file_url;
+      return item.generation.status === "completed" && !!item.generation.result_url;
+    }).length;
+  }, [gridItems]);
+
   const handleCardClick = (item: GridItem) => {
     if (selectionMode && item.type === "reference") {
       toggleSelect(item.ref.asset_id);
@@ -256,15 +264,8 @@ export default function AvatarDetails() {
     );
   }
 
-  const status = avatar ? (statusConfig[avatar.status] ?? { label: avatar.status, variant: "outline" as const }) : { label: "", variant: "outline" as const };
+  const status = statusConfig[avatar.status] ?? { label: avatar.status, variant: "outline" as const };
   const hasSelection = selectedIds.size > 0;
-  // Count only visible images: references with file_url + completed generations with result_url (not matched to a ref)
-  const completedImageCount = useMemo(() => {
-    return gridItems.filter((item) => {
-      if (item.type === "reference") return !!item.ref.file_url;
-      return item.generation.status === "completed" && !!item.generation.result_url;
-    }).length;
-  }, [gridItems]);
 
   return (
     <div className="min-h-screen bg-background">
