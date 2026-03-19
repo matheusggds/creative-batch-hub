@@ -48,6 +48,7 @@ export function NewGenerationModal({
   references,
   onGenerationCreated,
   preselectedAssetIds,
+  completedShotIds,
 }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
