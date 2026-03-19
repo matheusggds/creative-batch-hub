@@ -1,63 +1,74 @@
 
 
-## Plan: Unify Avatar Library with Generation Timeline
+## Plan: Delete Images/Avatars, Block Generated Shots, Fix Typos
 
-### Summary
-Remove the separate Generation History section. Show in-progress and failed generations as inline cards in the Avatar Library grid. Replace the raw image preview with a rich Image Detail Modal.
+### 1. Database: Add DELETE policy on `assets` table
 
-### Changes
+Currently `assets` has no DELETE RLS policy. Add one so users can delete their own assets.
 
-#### 1. New component: `src/components/avatar/ImageDetailModal.tsx`
-Rich modal for clicking any image card. Shows:
-- Large image preview (or placeholder for in-progress/error for failed)
-- Status badge, timestamp, shot/angle label
-- Whether image is original reference or generated
-- Reference images used (from `generation_reference_assets` via generation data)
-- Extracted prompt / debug info (collapsible)
-- Generation ID for debugging
-- Actions: "Use as Reference" (future), Close
-
-#### 2. Refactor `src/pages/AvatarDetails.tsx`
-- Import and use `useAvatarGenerations` to get all generations for this avatar
-- Build a unified grid: reference assets + active/failed generation placeholders
-  - Completed generations already appear as references (pipeline adds to `avatar_reference_assets`)
-  - Active generations (pending/processing/queued) → placeholder cards with spinner + progress
-  - Failed generations (no `result_asset_id`) → error cards with inline error state
-- Remove the `Collapsible` + `GenerationHistorySection` import entirely
-- Remove `historyOpen` state
-- Replace the raw `previewUrl` dialog with `ImageDetailModal`
-- Track clicked item as `{ type: 'reference' | 'generation', ref?, generation? }` instead of just `previewUrl`
-- Normal-mode click opens `ImageDetailModal` with full context
-
-#### 3. No changes to `GenerateBaseAnglesModal.tsx`
-Selection mode, preloading, and generation pipeline stay untouched.
-
-#### 4. Keep `GenerationHistorySection.tsx` file
-Just stop importing it. No deletion needed.
-
-### Grid merge logic
-```text
-gridItems = [
-  ...activeGenerations.map(g => ({ type: 'generation', generation: g })),
-  ...avatar.references.map(r => ({ type: 'reference', ref: r, generation: matchedGen })),
-  ...failedGenerations.filter(notInRefs).map(g => ({ type: 'generation', generation: g })),
-]
+```sql
+CREATE POLICY "Users can delete own assets" ON public.assets
+  FOR DELETE TO authenticated USING (auth.uid() = user_id);
 ```
-Active generations appear first (top of grid). Failed without result appear at end.
 
-Match reference → generation via: find generation where `result_asset_id === ref.asset_id` or generation `reference_asset_id === ref.asset_id`.
+### 2. Delete individual images from Avatar Library
 
-### `useAvatarGenerations` update
-Add `result_asset_id` to the select query so we can match generations to reference assets.
+**File: `src/pages/AvatarDetails.tsx`**
 
-### Files affected
-| File | Change |
-|---|---|
-| `src/components/avatar/ImageDetailModal.tsx` | **New** — rich image detail view |
-| `src/pages/AvatarDetails.tsx` | Merge grid, remove history section, use ImageDetailModal |
-| `src/hooks/useAvatarGenerations.ts` | Add `result_asset_id` to select |
+- Add a `Trash2` icon button on hover (top-left) of each `ReferenceCard`
+- On click, show an `AlertDialog` confirmation: "Tem certeza que deseja excluir esta imagem?"
+- On confirm, delete the `avatar_reference_assets` record, then delete the `assets` record
+- Invalidate `avatar_profile` and `avatar_generations` queries to refresh counts and grid
+- Use a mutation hook inline or a shared delete function
 
-### Risks
-- If pipeline doesn't add completed results to `avatar_reference_assets`, completed generations would be invisible. Mitigation: also show completed generations without matching reference as grid items.
-- Polling for active generations already exists in `useAvatarGenerations` (3s interval when active). No new polling needed.
+### 3. Delete avatar from list and detail page
+
+**File: `src/components/avatar/AvatarProfileCard.tsx`**
+- Add a `Trash2` icon on hover (top-right, beside the status badge)
+- On click, stop propagation, show `AlertDialog` confirmation
+- On confirm, delete from `avatar_profiles` (cascade handles `avatar_reference_assets`)
+- Invalidate `avatar_profiles` query
+
+**File: `src/pages/AvatarDetails.tsx`**
+- Add a destructive "Excluir avatar" button in the hero section (beside "Nova Geração")
+- On confirm, delete + navigate to `/avatars`
+
+### 4. Block already-generated shots in NewGenerationModal
+
+**File: `src/components/avatar/NewGenerationModal.tsx`**
+- Accept a new prop: `completedShotIds: Set<string>` (computed in AvatarDetails from `generations` with status `completed`)
+- Pass it down to `ShotPicker`
+
+**File: `src/components/avatar/ShotPicker.tsx`**
+- Accept optional `disabledShotIds?: Set<string>` prop
+- Shots in `disabledShotIds` render with reduced opacity, `cursor-not-allowed`, a `✓ Já gerado` indicator
+- `onToggleShot` ignores disabled shots
+- Group checkbox logic accounts for disabled shots
+- If all shots in a group are disabled, show "Todos os ângulos já foram gerados"
+
+**File: `src/pages/AvatarDetails.tsx`**
+- Compute `completedShotIds` from `generations` data by extracting `shotId` from `ai_parameters._debug.selectedShotId` or `ai_parameters.shotId` for completed generations
+- Pass to `NewGenerationModal`
+
+### 5. Fix typo: "imagemens" → "imagens"
+
+**File: `src/pages/AvatarDetails.tsx` line 201**
+- Change `imagem{refCount !== 1 ? "ens" : ""}` → `imagem{refCount !== 1 ? "ns" : ""}`
+
+Also check `NewGenerationModal.tsx` line 415: `imagem{referenceCount !== 1 ? "ns" : ""}` — this one is correct.
+
+### 6. Fix `generate_image` showing in avatar library placeholder
+
+**File: `src/pages/AvatarDetails.tsx` line 485**
+- Replace `{gen.current_step ?? "Processando…"}` with a humanized version:
+  - `generate_image` → `Gerando imagem...`
+  - `extract_prompt` → `Analisando imagem...`
+  - Anything else → `Processando...`
+
+### Files changed
+- Migration: add DELETE policy on `assets`
+- `src/pages/AvatarDetails.tsx` — delete image, delete avatar, computed completedShotIds, typo fix, humanize step
+- `src/components/avatar/AvatarProfileCard.tsx` — delete avatar from list
+- `src/components/avatar/NewGenerationModal.tsx` — pass `completedShotIds` to ShotPicker
+- `src/components/avatar/ShotPicker.tsx` — `disabledShotIds` prop with visual blocking
 
