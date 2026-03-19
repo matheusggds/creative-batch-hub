@@ -258,7 +258,13 @@ export default function AvatarDetails() {
 
   const status = statusConfig[avatar.status] ?? { label: avatar.status, variant: "outline" as const };
   const hasSelection = selectedIds.size > 0;
-  const refCount = avatar.references.length;
+  // Count only visible images: references with file_url + completed generations with result_url (not matched to a ref)
+  const completedImageCount = useMemo(() => {
+    return gridItems.filter((item) => {
+      if (item.type === "reference") return !!item.ref.file_url;
+      return item.generation.status === "completed" && !!item.generation.result_url;
+    }).length;
+  }, [gridItems]);
 
   return (
     <div className="min-h-screen bg-background">
