@@ -17,6 +17,8 @@ import {
   AlertTriangle,
   Clock,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   CheckCircle2,
   Camera,
@@ -32,7 +34,7 @@ import {
 import { AvatarGeneration } from "@/hooks/useAvatarGenerations";
 import { AvatarReferenceAsset } from "@/hooks/useAvatarProfile";
 import { useGenerationReferenceAssets } from "@/hooks/useGenerationReferenceAssets";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 
 export type GridItem =
@@ -43,6 +45,9 @@ interface ImageDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: GridItem | null;
+  navigableCount?: number;
+  currentIndex?: number;
+  onNavigate?: (index: number) => void;
 }
 
 const SHOT_LABELS: Record<string, string> = {
@@ -211,10 +216,31 @@ function MetaRow({ icon: Icon, label, children }: { icon: React.ElementType; lab
   );
 }
 
-export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalProps) {
+export function ImageDetailModal({ open, onOpenChange, item, navigableCount = 0, currentIndex = -1, onNavigate }: ImageDetailModalProps) {
   const [debugOpen, setDebugOpen] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const canGoPrev = currentIndex > 0;
+  const canGoNext = currentIndex >= 0 && currentIndex < navigableCount - 1;
+
+  const goPrev = useCallback(() => {
+    if (canGoPrev && onNavigate) onNavigate(currentIndex - 1);
+  }, [canGoPrev, onNavigate, currentIndex]);
+
+  const goNext = useCallback(() => {
+    if (canGoNext && onNavigate) onNavigate(currentIndex + 1);
+  }, [canGoNext, onNavigate, currentIndex]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") { e.preventDefault(); goPrev(); }
+      if (e.key === "ArrowRight") { e.preventDefault(); goNext(); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, goPrev, goNext]);
 
   const generation = item
     ? item.type === "generation"
@@ -308,6 +334,33 @@ export function ImageDetailModal({ open, onOpenChange, item }: ImageDetailModalP
               />
             ) : (
               <ImageIcon className="h-10 w-10 text-muted-foreground/30" />
+            )}
+
+            {/* Navigation arrows */}
+            {onNavigate && navigableCount > 1 && (
+              <>
+                <button
+                  onClick={goPrev}
+                  disabled={!canGoPrev}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-10 rounded-full bg-background/70 backdrop-blur-sm p-1.5 border border-border/50 hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed transition-opacity text-foreground"
+                  aria-label="Imagem anterior"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={goNext}
+                  disabled={!canGoNext}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 rounded-full bg-background/70 backdrop-blur-sm p-1.5 border border-border/50 hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed transition-opacity text-foreground"
+                  aria-label="Próxima imagem"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 rounded-full bg-background/70 backdrop-blur-sm px-2.5 py-0.5 border border-border/50">
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    {currentIndex + 1} de {navigableCount}
+                  </span>
+                </div>
+              </>
             )}
           </div>
 
