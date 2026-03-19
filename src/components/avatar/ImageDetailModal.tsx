@@ -221,6 +221,27 @@ export function ImageDetailModal({ open, onOpenChange, item, navigableCount = 0,
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  const canGoPrev = currentIndex > 0;
+  const canGoNext = currentIndex >= 0 && currentIndex < navigableCount - 1;
+
+  const goPrev = useCallback(() => {
+    if (canGoPrev && onNavigate) onNavigate(currentIndex - 1);
+  }, [canGoPrev, onNavigate, currentIndex]);
+
+  const goNext = useCallback(() => {
+    if (canGoNext && onNavigate) onNavigate(currentIndex + 1);
+  }, [canGoNext, onNavigate, currentIndex]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") { e.preventDefault(); goPrev(); }
+      if (e.key === "ArrowRight") { e.preventDefault(); goNext(); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, goPrev, goNext]);
+
   const generation = item
     ? item.type === "generation"
       ? item.generation
