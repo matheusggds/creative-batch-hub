@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { NewGenerationModal } from "@/components/avatar/NewGenerationModal";
 import { ImageDetailModal, GridItem } from "@/components/avatar/ImageDetailModal";
 import { useParams, useNavigate } from "react-router-dom";
@@ -6,6 +6,7 @@ import { useAvatarProfile } from "@/hooks/useAvatarProfile";
 import { useAvatarGenerations, AvatarGeneration } from "@/hooks/useAvatarGenerations";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getShortModelName, extractModelInfo, relativeTime } from "@/lib/generation-utils";
 
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
