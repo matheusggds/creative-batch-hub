@@ -44,15 +44,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   archived: { label: "Arquivado", variant: "outline" },
 };
 
-const STEP_LABELS: Record<string, string> = {
-  generate_image: "Gerando imagem...",
-  extract_prompt: "Analisando imagem...",
-};
-
-function humanizeStep(step: string | null): string {
-  if (!step) return "Processando…";
-  return STEP_LABELS[step] ?? "Processando...";
-}
+// humanizeStep is now imported from generation-utils
 
 export default function AvatarDetails() {
   const { id } = useParams<{ id: string }>();
