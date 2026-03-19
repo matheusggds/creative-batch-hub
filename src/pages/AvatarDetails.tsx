@@ -712,11 +712,6 @@ function GenerationCard({
             </div>
           )}
           <DownloadButton url={gen.result_url} name={shotLabel ?? "gerada"} />
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-2 pb-1.5 pt-6 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-            <span className="text-[10px] font-medium text-white leading-tight line-clamp-1">
-              {shotLabel ?? "Imagem Gerada"}
-            </span>
-          </div>
         </>
       ) : (
         <div className="flex h-full w-full items-center justify-center">
