@@ -43,6 +43,9 @@ interface ImageDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: GridItem | null;
+  navigableCount?: number;
+  currentIndex?: number;
+  onNavigate?: (index: number) => void;
 }
 
 const SHOT_LABELS: Record<string, string> = {
