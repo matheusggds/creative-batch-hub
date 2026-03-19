@@ -17,6 +17,8 @@ import {
   AlertTriangle,
   Clock,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   CheckCircle2,
   Camera,
