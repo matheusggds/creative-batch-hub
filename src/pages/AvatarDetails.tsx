@@ -125,7 +125,7 @@ export default function AvatarDetails() {
     onError: () => toast.error("Não foi possível excluir o avatar. Tente novamente."),
   });
 
-  // Compute completed shot IDs
+  // Compute completed shot IDs (FB8_LIFESTYLE_UGC is excluded — it can be generated multiple times)
   const completedShotIds = useMemo(() => {
     const ids = new Set<string>();
     if (!generations) return ids;
@@ -134,7 +134,7 @@ export default function AvatarDetails() {
       const params = gen.ai_parameters as Record<string, unknown>;
       const debug = params?._debug as Record<string, unknown> | null;
       const shotId = params?.shotId ?? debug?.selectedShotId;
-      if (shotId && typeof shotId === "string") ids.add(shotId);
+      if (shotId && typeof shotId === "string" && shotId !== "FB8_LIFESTYLE_UGC") ids.add(shotId);
     }
     return ids;
   }, [generations]);
